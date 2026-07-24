@@ -1,0 +1,45 @@
+{
+  "id": "4d8a185f",
+  "created_at": "2026-07-24T11:05:00.577624+00:00",
+  "status": "active",
+  "prompt": "Instead, compare the documents and create a summary",
+  "files": [
+    "samples/q3_earnings.pdf",
+    "samples/financials.xlsx"
+  ],
+  "intent": {
+    "task_type": "compare_and_summarize",
+    "new_task_type": "compare_and_summarize",
+    "decision": "go",
+    "reason": "Switching to compare_and_summarize.",
+    "sources": [
+      "samples/q3_earnings.pdf",
+      "samples/financials.xlsx"
+    ]
+  },
+  "history": [
+    {
+      "prompt": "Locate information in the PDF and enter it into the spreadsheet",
+      "intent": {
+        "task_type": "pdf_to_spreadsheet",
+        "decision": "go",
+        "reason": null,
+        "source_pdf": "samples/q3_earnings.pdf",
+        "target_sheet": "samples/financials.xlsx"
+      }
+    },
+    {
+      "prompt": "Instead, compare the documents and create a summary",
+      "intent": {
+        "task_type": "compare_and_summarize",
+        "new_task_type": "compare_and_summarize",
+        "decision": "go",
+        "reason": "Switching to compare_and_summarize.",
+        "sources": [
+          "samples/q3_earnings.pdf",
+          "samples/financials.xlsx"
+        ]
+      }
+    }
+  ]
+}
