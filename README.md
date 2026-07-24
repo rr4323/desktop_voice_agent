@@ -24,6 +24,15 @@ Every component from the spec gets its own top-level folder under
 | 11 | [`components/c11_state_manager/`](components/c11_state_manager/) | Track step status across a task; support pause, resume, correction, cancellation. |
 | 12 | [`components/c12_audit_logger/`](components/c12_audit_logger/) | Write one structured, PII-masked log entry per step. |
 | 13 | [`components/c13_orchestrator/`](components/c13_orchestrator/) | Wires all other components together per the data flow in the TDD. The only component that is an integration test, not a unit-testable leaf. |
+| 14 | [`components/c14_accessibility_adapter/`](components/c14_accessibility_adapter/) | Read/write live desktop UI elements via AT-SPI, for content the format-native adapters can't resolve. Secondary/fallback path. |
+| 15 | [`components/c15_browser_adapter/`](components/c15_browser_adapter/) | Read/write a value on a web page (e.g. an internal ops dashboard), same read/write-with-provenance shape as the file adapters. |
+
+Components 14 and 15 aren't in the original `Component_IO_Spec.md` — they
+were added afterward to explicitly demonstrate the "operate the desktop
+using appropriate GUI, accessibility, browser, or automation interfaces"
+capability beyond the document-format adapters. See the "Extensions beyond
+the original spec" section at the bottom of
+[`docs/Component_IO_Spec.md`](docs/Component_IO_Spec.md) for their contracts.
 
 **The hard rule that makes parallel work possible:** components never import
 or call each other directly. They only exchange the JSON-shaped data
@@ -53,18 +62,23 @@ component — including the ASR/TTS/LLM ones — being implemented yet.
 ## Setup
 
 ```bash
-python3 -m venv .venv
+python3 -m venv --system-site-packages .venv   # --system-site-packages needed for c14 (PyGObject/Atspi)
 source .venv/bin/activate
 pip install -r requirements.txt   # installs every component's deps, for integration work
 # or, to work on just one component:
-pip install -r components/05_policy_engine/requirements.txt
+pip install -r components/c05_policy_engine/requirements.txt
 ```
+
+`c14_accessibility_adapter` also needs system packages
+(`python3-gi gir1.2-atspi-2.0 at-spi2-core xvfb`) and `c15_browser_adapter`
+needs its browser binary (`python -m playwright install chromium`) — see
+those components' own READMEs.
 
 ## Running tests
 
 ```bash
 pytest                              # everything
-pytest components/05_policy_engine  # just one component
+pytest components/c05_policy_engine # just one component
 ```
 
 ## Suggested build order (from the spec)
@@ -76,6 +90,9 @@ pytest components/05_policy_engine  # just one component
 5. ASR / TTS (`01`, `03`) — hardware-dependent.
 6. Task Planner (`04`) — needs real `ActionRequest` schemas to validate against.
 7. Orchestrator (`13`) — last, wires everything together.
+8. Accessibility / Browser Adapters (`14`, `15`) — added later to showcase
+   the GUI/accessibility/browser capability explicitly; not on the critical
+   path for the core PDF→XLSX→PPTX demo trace.
 
 ## Git workflow for a two-person team
 

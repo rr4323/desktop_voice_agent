@@ -1,0 +1,6 @@
+# PyGObject (the "gi" module, providing gi.repository.Atspi) is a system
+# package, not a clean pip install — it needs system GObject-introspection
+# libraries. Install it via your OS package manager:
+#   sudo apt install python3-gi gir1.2-atspi-2.0 at-spi2-core
+# and create/upgrade your venv with --system-site-packages so it can see it:
+#   python3 -m venv --system-site-packages --upgrade .venv

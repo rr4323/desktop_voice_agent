@@ -364,3 +364,100 @@ or
 5. ASR / TTS (§1, §3) — hardware-dependent, bring in once the logic layer is solid.
 6. Task Planner (§4) — bring in once you have real `ActionRequest` schemas to validate against.
 7. Orchestrator (§13) — last, wiring everything together for the end-to-end demo trace.
+
+---
+
+## Extensions beyond the original spec
+
+The two components below were added after the original 13-component spec
+above, to explicitly demonstrate the hackathon brief's required capability
+"operate the desktop using appropriate GUI, accessibility, browser, or
+automation interfaces" — the original 13 satisfy that via file-format
+libraries (PDF/XLSX/PPTX), which count as an automation interface for
+structured files but don't showcase GUI/accessibility/browser control on
+their own. Same rules as every component above: built/tested in isolation,
+communicates only via JSON in/out, no direct calls to other components.
+
+## 14. Accessibility Adapter
+
+**Responsibility:** Read/write a live desktop UI element via the OS
+accessibility tree (AT-SPI on Linux), for content the format-native
+adapters can't resolve from a file directly (e.g. an embedded chart image,
+or visually confirming a value in a running app window). This is TDD §6.4's
+"accessibility fallback," implemented as its own component rather than left
+as prose. Secondary path — reach for a file-format adapter (§6-8) first
+whenever there's a structured file to read/write directly.
+
+**Input**
+```json
+{ "operation": "read", "app_name": "kpi_dashboard", "element_name": "revenue_field" }
+```
+```json
+{ "operation": "write", "app_name": "kpi_dashboard", "element_name": "revenue_field", "value": "2.4M" }
+```
+
+**Output**
+```json
+{
+  "value": "2.4M",
+  "provenance": { "app": "kpi_dashboard", "element": "revenue_field", "role": "text" },
+  "extraction_method": "accessibility_tree"
+}
+```
+```json
+{ "success": true, "element": "revenue_field", "previous_value": "1.8M", "new_value": "2.4M" }
+```
+
+**Standalone test**
+- Spin up a throwaway, offscreen desktop (its own Xvfb display, D-Bus session, and AT-SPI bus) so tests never touch whatever real desktop session is running them.
+- Drive a minimal real GTK app (one editable entry, one read-only label, both with known accessible names) inside that isolated desktop via the real adapter — no mocking of the accessibility tree.
+- Assert: read returns the current value with provenance; write-then-read round-trips; writing to a non-editable element raises a clean error rather than failing silently; an unknown app/element name raises a clean, specific error rather than a raw AT-SPI/GLib exception.
+
+**Dependencies to mock:** none — but needs system packages (`python3-gi`, `gir1.2-atspi-2.0`, `at-spi2-core`, `xvfb`), not just a pip install.
+
+---
+
+## 15. Browser Adapter
+
+**Responsibility:** Read/write a value on a web page — e.g. pulling a KPI
+off an internal ops dashboard, or filling a value into a web-based form —
+using the same read/write-with-provenance shape as the file adapters, so it
+plugs into the same `ActionRequest`/`ActionResult` contract (§5.2) without
+the planner or policy engine needing a special case for "it's a browser
+this time." Secondary path, same reasoning as component 14 — use it when
+the source of truth genuinely is a web page, not as a substitute for a
+file-format adapter.
+
+**Input**
+```json
+{ "operation": "read", "url": "https://ops-dashboard.internal/kpis", "selector": "#kpi-value" }
+```
+```json
+{ "operation": "write", "url": "https://ops-dashboard.internal/kpis", "selector": "#note-field", "value": "2.4M" }
+```
+
+**Output**
+```json
+{
+  "value": "2.4M",
+  "provenance": { "url": "https://ops-dashboard.internal/kpis", "selector": "#kpi-value" },
+  "extraction_method": "browser_dom"
+}
+```
+```json
+{ "success": true, "selector": "#note-field", "previous_value": "1.8M", "new_value": "2.4M" }
+```
+
+**Standalone test**
+- Run against a local static HTML fixture page loaded via `file://` — no live network, no other component needed.
+- Assert: read extracts a value with provenance (from both plain elements and form fields); write reports previous/new value; writing to a non-fillable element raises a clean error; an unmatched selector raises a clean error rather than the automation library's default timeout stack trace.
+
+**Dependencies to mock:** none — but needs a real (headless) browser binary (`playwright install chromium`), not just a pip install.
+
+## Suggested build/test order — extension
+
+Components 14 and 15 aren't on the critical path for the core PDF→XLSX→PPTX
+demo trace (§10) and depend on nothing else in the spec, so they can be
+built any time after the Policy Engine — but budget extra setup time for
+the system packages/browser binary they each need, which none of the
+original 13 components require.

@@ -237,3 +237,34 @@ One structured, timestamped entry per step (see schema in §5.2), with subscribe
 | Architecture description | This document, §4–9 |
 | Evaluation suite | §11 |
 | Demonstration | §10 (success trace); correction/cancellation and refusal cases per §11 |
+
+## 14. Scope Extension: Accessibility & Browser Adapters
+
+§2's Non-Goals scope general-purpose GUI/browser automation out, "except as
+an accessibility-layer fallback" — and §6.4 mentions that fallback only in
+prose, without a corresponding component. Two adapters were added after the
+original spec specifically to make that fallback real and to demonstrate
+the hackathon brief's "operate the desktop using appropriate GUI,
+accessibility, browser, or automation interfaces" requirement beyond what
+file-format libraries alone show:
+
+- **Accessibility Adapter** (AT-SPI) — reads/writes a live desktop UI
+  element for content the format-native adapters can't resolve from a file
+  (e.g. an embedded chart image, or visually confirming a value in a
+  running app).
+- **Browser Adapter** (Playwright) — reads/writes a value on a web page
+  (e.g. an internal ops dashboard), using the same read/write-with-provenance
+  shape as the file adapters.
+
+Both stay **secondary** to the core design, not a replacement for it: a
+file-format read (§6.4's PDF/XLSX/PPTX adapters) is still faster and more
+deterministic than driving a live GUI or browser, and — critically — the
+Policy Engine (§6.3) and Verification module (§6.7) apply to `ActionRequest`s
+from these adapters exactly the same as any other. A write proposed via the
+Accessibility or Browser adapter that would overwrite existing data still
+gets `ASK_CONFIRM`; the postcondition still gets re-read and checked before
+success is reported. The safety boundary described in §4 doesn't change
+because the execution adapter changed.
+
+Full I/O contracts: `docs/Component_IO_Spec.md`, "Extensions beyond the
+original spec."
