@@ -82,3 +82,13 @@ def transcribe(request: dict[str, Any]) -> dict[str, Any]:
         "confidence": round(overall_confidence, 4),
         "low_confidence_spans": low_confidence_spans,
     }
+
+
+if __name__ == "__main__":
+    # Manual smoke test: python -m components.c01_asr.src.asr path/to/audio.wav [language]
+    import json
+    import sys
+
+    path = sys.argv[1]
+    lang = sys.argv[2] if len(sys.argv) > 2 else None
+    print(json.dumps(transcribe({"audio_path": path, "language": lang}), indent=2))
