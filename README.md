@@ -26,12 +26,15 @@ Every component from the spec gets its own top-level folder under
 | 13 | [`components/c13_orchestrator/`](components/c13_orchestrator/) | Wires all other components together per the data flow in the TDD. The only component that is an integration test, not a unit-testable leaf. |
 | 14 | [`components/c14_accessibility_adapter/`](components/c14_accessibility_adapter/) | Read/write live desktop UI elements via AT-SPI, for content the format-native adapters can't resolve. Secondary/fallback path. |
 | 15 | [`components/c15_browser_adapter/`](components/c15_browser_adapter/) | Read/write a value on a web page (e.g. an internal ops dashboard), same read/write-with-provenance shape as the file adapters. |
+| 16 | [`components/c16_libreoffice_adapter/`](components/c16_libreoffice_adapter/) | Headless document conversion (`soffice --headless --convert-to`) for legacy formats or PDF export the native-library adapters don't handle. |
 
-Components 14 and 15 aren't in the original `Component_IO_Spec.md` — they
-were added afterward to explicitly demonstrate the "operate the desktop
-using appropriate GUI, accessibility, browser, or automation interfaces"
-capability beyond the document-format adapters. See the "Extensions beyond
-the original spec" section at the bottom of
+Components 14-16 aren't in the original `Component_IO_Spec.md` — they were
+added afterward: 14 and 15 to explicitly demonstrate the "operate the
+desktop using appropriate GUI, accessibility, browser, or automation
+interfaces" capability beyond the document-format adapters, and 16 to
+cover legacy-format conversion (`.doc`/`.xls`/`.ppt`) that the native
+libraries can't read or write at all. See the "Extensions beyond the
+original spec" section at the bottom of
 [`docs/Component_IO_Spec.md`](docs/Component_IO_Spec.md) for their contracts.
 
 **The hard rule that makes parallel work possible:** components never import

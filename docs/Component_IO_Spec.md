@@ -454,10 +454,45 @@ file-format adapter.
 
 **Dependencies to mock:** none — but needs a real (headless) browser binary (`playwright install chromium`), not just a pip install.
 
+---
+
+## 16. LibreOffice Adapter
+
+**Responsibility:** Convert a document to another format via headless
+LibreOffice (`soffice --headless --convert-to`) — for legacy formats the
+native-library adapters don't read/write at all (`.doc`, `.xls`, `.ppt`),
+or producing a PDF from an XLSX/PPTX for distribution. A completely
+different mechanism from the accessibility adapter (§14): no GUI, no
+display, no accessibility tree — this drives LibreOffice's own batch
+conversion engine directly. Secondary path, same reasoning as 14/15: prefer
+the native libraries whenever the format is one they already handle.
+
+**Input**
+```json
+{ "file": "network_report.doc", "target_format": "pdf" }
+```
+
+**Output**
+```json
+{
+  "success": true,
+  "input_file": "network_report.doc",
+  "output_file": "network_report.pdf",
+  "target_format": "pdf"
+}
+```
+
+**Standalone test**
+- Convert a plain-text fixture to PDF and check the real output: correct path, non-zero size, genuine `%PDF-` magic-byte header — not just "the process exited 0."
+- Assert: an `output_dir` override lands the file in the right place; a missing input file raises a clean error before `soffice` is even invoked; a bogus target format raises a clean error rather than silently producing nothing.
+- Each call uses its own throwaway `UserInstallation` profile directory — without this, LibreOffice's single-instance profile lock can make a conversion silently hang or fail if another `soffice` process is already running under the same profile.
+
+**Dependencies to mock:** none — but needs LibreOffice (`soffice`) installed on the system, not a pip package.
+
 ## Suggested build/test order — extension
 
-Components 14 and 15 aren't on the critical path for the core PDF→XLSX→PPTX
+Components 14-16 aren't on the critical path for the core PDF→XLSX→PPTX
 demo trace (§10) and depend on nothing else in the spec, so they can be
 built any time after the Policy Engine — but budget extra setup time for
-the system packages/browser binary they each need, which none of the
-original 13 components require.
+the system packages/browser binary/LibreOffice install they each need,
+which none of the original 13 components require.

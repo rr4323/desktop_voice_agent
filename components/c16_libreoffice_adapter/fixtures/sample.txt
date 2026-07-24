@@ -1,0 +1,1 @@
+This is a sample plain-text fixture used to test the LibreOffice headless conversion adapter.
