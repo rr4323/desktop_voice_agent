@@ -1,0 +1,54 @@
+Skip to content
+Accessibility Feedback
+Rewards
+ALLSEARCHIMAGESVIDEOSMAPSNEWS
+MORE
+About 87,400 results
+explainx.ai
+https://explainx.ai
+What Is Loop Engineering? Beyond Prompt Engineering in 2026 ...
+
+Jun 13, 2026 · Loop engineering is the practice of designing the system that prompts your AI agent, rather than typing each prompt …
+
+ 
+langchain.com
+https://www.langchain.com
+The Art of Loop Engineering - langchain.com
+
+Jun 16, 2026 · This post explores the core agent loop, how stacking and extending loops builds more effective agents, and how to …
+
+github.com
+https://github.com
+GitHub - cobusgreyling/loop-engineering: Practical patterns ...
+
+Practical, tool-aware reference for loop engineering, patterns you can clone, checklists you can ship against, and stories that include …
+
+claude.com
+https://claude.com
+Loop engineering: Getting started with loops | Claude by ...
+
+Jun 30, 2026 · Loop engineering with Anthropic's Claude Code: design turn-based, goal, time, and proactive agent loops that run to a …
+
+ibm.com
+https://www.ibm.com
+What is loop engineering? - IBM
+
+Jul 17, 2026 · Loop engineering is the practice of designing agentic workflows, or loops, that iteratively guide AI agents toward …
+
+datasciencedojo.com
+https://datasciencedojo.com
+10 Loop Engineering Design Patterns for AI Builders (2026)
+
+Jun 24, 2026 · Loop engineering is the practice of designing how an AI agent runs, checks its work, and iterates – not just writing …
+
+Searches you might like
+ai engineering
+prompt engineering
+engineering
+loopnet
+computer engineering
+1
+2
+3
+Privacy
+Terms
