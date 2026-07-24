@@ -121,6 +121,21 @@ a request with neither `element_name` nor `role` being rejected up front.
   mechanism, the same way `c16`'s headless conversion is a different
   mechanism from this component. Not implemented here; flagging it as the
   known path if LO Writer read/write is needed later.
+- **A coordinate-based fallback was prototyped and confirmed to work, then
+  deliberately not adopted.** Raw XTest key/mouse synthesis via
+  `python-xlib` (bypassing AT-SPI's own synthesis entirely) *did*
+  successfully type into LO Writer's canvas — the text landed correctly and
+  was visually confirmed. It was rejected anyway: it depends on screen
+  coordinates, window placement, and a running window manager, which is
+  exactly the coordinate/vision-based fragility this component (and the
+  TDD's §12 preference for structured APIs over GUI simulation) is designed
+  to avoid. It would also only ever solve the *write* half — AT-SPI's
+  `Text` interface was independently confirmed broken for reading LO
+  Writer's document too (`get_text` returns empty, `get_character_count`
+  raises), so there'd be no reliable way to verify the write through this
+  component's own contract regardless. This component stays strictly
+  accessibility-tree-based; LO Writer's document body is out of scope for
+  it, full stop — use `c16` or UNO scripting for that app instead.
 
 ## Dependencies
 
