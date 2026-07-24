@@ -2,3 +2,21 @@ pdfplumber==0.7.5
 openpyxl==3.1.2
 python-pptx==0.6.21
 python-docx==0.8.11
+# Aggregates every component's own requirements.txt.
+# Install this for integration work (orchestrator, end-to-end tests).
+# For working on a single component, use that component's requirements.txt instead.
+pytest
+jsonschema
+-r components/c01_asr/requirements.txt
+-r components/c02_confirmation_parser/requirements.txt
+-r components/c03_tts/requirements.txt
+-r components/c04_planner/requirements.txt
+-r components/c05_policy_engine/requirements.txt
+-r components/c06_pdf_adapter/requirements.txt
+-r components/c07_xlsx_adapter/requirements.txt
+-r components/c08_pptx_adapter/requirements.txt
+-r components/c09_working_memory/requirements.txt
+-r components/c10_verification/requirements.txt
+-r components/c11_state_manager/requirements.txt
+-r components/c12_audit_logger/requirements.txt
+-r components/c13_orchestrator/requirements.txt
