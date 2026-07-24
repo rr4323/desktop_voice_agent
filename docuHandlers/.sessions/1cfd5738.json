@@ -1,0 +1,25 @@
+{
+  "id": "1cfd5738",
+  "created_at": "2026-07-24T11:31:59.934863+00:00",
+  "status": "active",
+  "prompt": "Locate information in the PDF and enter it into the docx",
+  "files": [
+    "/Users/srishti/Desktop/docuHandlers/samples/samples/sample_network_report.pdf",
+    "/Users/srishti/Desktop/docuHandlers/samples/samples/executive_brief.docx"
+  ],
+  "intent": {
+    "task_type": "unknown",
+    "decision": "clarify",
+    "reason": "Could not determine the task. Supported requests include: locate PDF info into a spreadsheet, update a presentation from a document, organise files, compare documents and summarize, or correct a document."
+  },
+  "history": [
+    {
+      "prompt": "Locate information in the PDF and enter it into the docx",
+      "intent": {
+        "task_type": "unknown",
+        "decision": "clarify",
+        "reason": "Could not determine the task. Supported requests include: locate PDF info into a spreadsheet, update a presentation from a document, organise files, compare documents and summarize, or correct a document."
+      }
+    }
+  ]
+}

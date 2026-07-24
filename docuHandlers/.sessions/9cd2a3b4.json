@@ -1,0 +1,29 @@
+{
+  "id": "9cd2a3b4",
+  "created_at": "2026-07-24T11:35:09.063328+00:00",
+  "status": "active",
+  "prompt": "Locate information in the PDF and enter it into the docx",
+  "files": [
+    "/Users/srishti/Desktop/docuHandlers/samples/samples/sample_network_report.pdf",
+    "/Users/srishti/Desktop/docuHandlers/samples/samples/executive_brief.docx"
+  ],
+  "intent": {
+    "task_type": "pdf_to_doc",
+    "decision": "go",
+    "reason": null,
+    "source_pdf": "/Users/srishti/Desktop/docuHandlers/samples/samples/sample_network_report.pdf",
+    "target_document": "/Users/srishti/Desktop/docuHandlers/samples/samples/executive_brief.docx"
+  },
+  "history": [
+    {
+      "prompt": "Locate information in the PDF and enter it into the docx",
+      "intent": {
+        "task_type": "pdf_to_doc",
+        "decision": "go",
+        "reason": null,
+        "source_pdf": "/Users/srishti/Desktop/docuHandlers/samples/samples/sample_network_report.pdf",
+        "target_document": "/Users/srishti/Desktop/docuHandlers/samples/samples/executive_brief.docx"
+      }
+    }
+  ]
+}

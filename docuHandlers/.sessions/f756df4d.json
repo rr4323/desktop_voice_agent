@@ -1,0 +1,25 @@
+{
+  "id": "f756df4d",
+  "created_at": "2026-07-24T11:05:37.236944+00:00",
+  "status": "cancelled",
+  "prompt": "Do something with my files",
+  "files": [
+    "/Users/srishti/Desktop/docuHandlers/samples/q3_earnings.pdf"
+  ],
+  "intent": {
+    "task_type": "unknown",
+    "decision": "clarify",
+    "reason": "Could not determine the task. Supported requests include: locate PDF info into a spreadsheet, update a presentation from a document, organise files, compare documents and summarize, or correct a document."
+  },
+  "history": [
+    {
+      "prompt": "Do something with my files",
+      "intent": {
+        "task_type": "unknown",
+        "decision": "clarify",
+        "reason": "Could not determine the task. Supported requests include: locate PDF info into a spreadsheet, update a presentation from a document, organise files, compare documents and summarize, or correct a document."
+      }
+    }
+  ],
+  "cancel_reason": "Cancellation detected in prompt."
+}

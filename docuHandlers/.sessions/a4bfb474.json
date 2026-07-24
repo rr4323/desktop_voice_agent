@@ -1,0 +1,68 @@
+{
+  "id": "a4bfb474",
+  "created_at": "2026-07-24T11:11:41.271765+00:00",
+  "status": "done",
+  "prompt": "Organise these files by type into separate folders",
+  "files": [
+    "/Users/srishti/Desktop/docuHandlers/samples/q3_earnings.pdf",
+    "/Users/srishti/Desktop/docuHandlers/samples/financials.xlsx"
+  ],
+  "intent": {
+    "task_type": "organise_files",
+    "decision": "go",
+    "reason": null,
+    "files": [
+      "/Users/srishti/Desktop/docuHandlers/samples/q3_earnings.pdf",
+      "/Users/srishti/Desktop/docuHandlers/samples/financials.xlsx"
+    ]
+  },
+  "history": [
+    {
+      "prompt": "Organise these files by type into separate folders",
+      "intent": {
+        "task_type": "organise_files",
+        "decision": "go",
+        "reason": null,
+        "files": [
+          "/Users/srishti/Desktop/docuHandlers/samples/q3_earnings.pdf",
+          "/Users/srishti/Desktop/docuHandlers/samples/financials.xlsx"
+        ]
+      }
+    }
+  ],
+  "result": {
+    "status": "done",
+    "preview": "Organised files by by_type into /Users/srishti/Desktop/docuHandlers/samples/organised\n\n  /Users/srishti/Desktop/docuHandlers/samples/q3_earnings.pdf \u2192 /Users/srishti/Desktop/docuHandlers/samples/organised/PDFs/q3_earnings.pdf\n  /Users/srishti/Desktop/docuHandlers/samples/financials.xlsx \u2192 /Users/srishti/Desktop/docuHandlers/samples/organised/Spreadsheets/financials.xlsx",
+    "output_file": "/Users/srishti/Desktop/docuHandlers/samples/organised",
+    "log": [
+      {
+        "stage": "confidence_gate_organise",
+        "result": {
+          "decision": "go",
+          "reason": "Organisation rule understood from prompt."
+        }
+      },
+      {
+        "stage": "file_organizer",
+        "result": {
+          "dest_root": "/Users/srishti/Desktop/docuHandlers/samples/organised",
+          "rule": "by_type",
+          "moves": [
+            {
+              "source": "/Users/srishti/Desktop/docuHandlers/samples/q3_earnings.pdf",
+              "destination": "/Users/srishti/Desktop/docuHandlers/samples/organised/PDFs/q3_earnings.pdf",
+              "status": "copied",
+              "rule": "by_type"
+            },
+            {
+              "source": "/Users/srishti/Desktop/docuHandlers/samples/financials.xlsx",
+              "destination": "/Users/srishti/Desktop/docuHandlers/samples/organised/Spreadsheets/financials.xlsx",
+              "status": "copied",
+              "rule": "by_type"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

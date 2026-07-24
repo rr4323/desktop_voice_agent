@@ -1,0 +1,90 @@
+{
+  "id": "0e2a913e",
+  "created_at": "2026-07-24T11:11:39.817140+00:00",
+  "status": "done",
+  "prompt": "Update the presentation using information from the earnings report",
+  "files": [
+    "/Users/srishti/Desktop/docuHandlers/samples/q3_earnings.pdf",
+    "/Users/srishti/Desktop/docuHandlers/samples/deck.pptx"
+  ],
+  "intent": {
+    "task_type": "update_presentation",
+    "decision": "go",
+    "reason": null,
+    "source_document": "/Users/srishti/Desktop/docuHandlers/samples/q3_earnings.pdf",
+    "target_presentation": "/Users/srishti/Desktop/docuHandlers/samples/deck.pptx"
+  },
+  "history": [
+    {
+      "prompt": "Update the presentation using information from the earnings report",
+      "intent": {
+        "task_type": "update_presentation",
+        "decision": "go",
+        "reason": null,
+        "source_document": "/Users/srishti/Desktop/docuHandlers/samples/q3_earnings.pdf",
+        "target_presentation": "/Users/srishti/Desktop/docuHandlers/samples/deck.pptx"
+      }
+    }
+  ],
+  "result": {
+    "status": "done",
+    "preview": "Updated presentation from /Users/srishti/Desktop/docuHandlers/samples/q3_earnings.pdf\n\nReplacements made:\n  slide 1: {{ revenue }} \u2192 1250.5\n  slide 1: {{ eps }} \u2192 2.45\n  slide 1: {{ net_income }} \u2192 320.8\n  slide 1: {{ period }} \u2192 Q3 2024\n\nOutput file: /Users/srishti/Desktop/docuHandlers/samples/deck_updated.pptx",
+    "output_file": "/Users/srishti/Desktop/docuHandlers/samples/deck_updated.pptx",
+    "log": [
+      {
+        "stage": "confidence_gate_source",
+        "result": {
+          "decision": "go",
+          "reason": "Extracted 121 characters of text."
+        }
+      },
+      {
+        "stage": "confidence_gate_target",
+        "result": {
+          "decision": "go",
+          "reason": "Target file exists and is the right type."
+        }
+      },
+      {
+        "stage": "presentation_handler",
+        "result": {
+          "output_path": "/Users/srishti/Desktop/docuHandlers/samples/deck_updated.pptx",
+          "replacements": [
+            {
+              "slide": 1,
+              "placeholder": "revenue",
+              "value": "1250.5"
+            },
+            {
+              "slide": 1,
+              "placeholder": "eps",
+              "value": "2.45"
+            },
+            {
+              "slide": 1,
+              "placeholder": "net_income",
+              "value": "320.8"
+            },
+            {
+              "slide": 1,
+              "placeholder": "period",
+              "value": "Q3 2024"
+            }
+          ],
+          "values_available": {
+            "revenue": "1250.5",
+            "net": "Income: $320.8 M",
+            "eps": "2.45",
+            "operating": "Margin: 28.5 %",
+            "gross": "Margin: 62.3 %",
+            "net_income": "320.8",
+            "operating_margin": "28.5",
+            "gross_margin": "62.3",
+            "period": "Q3 2024"
+          },
+          "source": "/Users/srishti/Desktop/docuHandlers/samples/q3_earnings.pdf"
+        }
+      }
+    ]
+  }
+}
