@@ -1,0 +1,6 @@
+{
+  "step_id": 2,
+  "decision": "ASK_CONFIRM",
+  "tier": "reversible-write-overwrite",
+  "reason": "Target cell B7 already contains a non-empty value"
+}
