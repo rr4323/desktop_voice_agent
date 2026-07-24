@@ -102,10 +102,25 @@ a request with neither `element_name` nor `role` being rejected up front.
   `.txt` file — confirmed by reading the file back off disk afterward.
   LibreOffice Writer was tried first and rejected as the demo target: its
   document canvas doesn't implement `EditableText` in a way AT-SPI can
-  drive (a real, separate limitation from the role/name issue above), so a
-  synthetic-keyboard-event write path would be needed to support it — not
-  implemented here since gedit already proved the adapter's core mechanism
-  end-to-end.
+  drive (a real, separate limitation from the role/name issue above).
+- **LibreOffice Writer's canvas resists synthetic input entirely, not just
+  `EditableText`.** Follow-up investigation (running a real window manager
+  — `mutter`, already installed — in the offscreen session) confirmed the
+  window itself renders correctly once a WM is present, and that real X
+  keyboard focus does land on the LO Writer window (verified via
+  `python-xlib`'s `get_input_focus()`, walking up to the named ancestor).
+  Synthetic keyboard/mouse events (`Atspi.generate_keyboard_event`,
+  `Atspi.generate_mouse_event`) were confirmed to work correctly against a
+  plain GTK entry in the very same session, ruling out an environment or
+  focus problem — yet those same events produce no effect on LO Writer's
+  document. This points to something LO-specific in how its canvas
+  processes input, not a fixable AT-SPI/window-manager configuration issue.
+  **The correct fix for LibreOffice specifically is not more GUI
+  automation** — it's LibreOffice's own UNO scripting API (`soffice
+  --accept=...`, driven via `python-uno`), a genuinely different automation
+  mechanism, the same way `c16`'s headless conversion is a different
+  mechanism from this component. Not implemented here; flagging it as the
+  known path if LO Writer read/write is needed later.
 
 ## Dependencies
 
