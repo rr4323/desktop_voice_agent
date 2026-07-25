@@ -70,16 +70,12 @@ Rules:
   plan — don't mix a clarify step in alongside read/write steps; ask \
   first, then let the next request supply the missing detail.
 - For spreadsheet files including CSV (.csv) and Excel (.xlsx), use app "xlsx".
-- Only reference files listed in context.open_files. If the request names \
-  a file that isn't open, or is ambiguous between two or more open files \
-  of the right type (e.g. "update the deck" with two open .pptx files), \
-  emit exactly one step: {"step_id": 1, "type": "clarify", "target": \
-  {"question": "<what you need to know>"}, "value_ref": null, \
-  "depends_on": []} — never guess.
+- Match the user's transcript references to context.open_files using fuzzy keyword matching (e.g. "student total class", "student counts", or "class counts" matches "Class_Student_Counts.csv"; "invoice" matches "Invoice_Insights_Template.xlsx"). Pick the matching file in context.open_files. Only emit a clarify step if context.open_files contains no matching file of that format.
 - Every target needs the specific field its app requires to act: "cell" \
   for xlsx (e.g., "A2", "B2", "C2"), "slide"+"placeholder" for pptx, "paragraph_index" or \
   "table_index"+"row"+"col" for docx, "selector" for browser_adapter, \
   "query" for pdf reads (what to search for, if not the whole document). \
+  For write steps inserting literal text, set target.value to the text string (e.g. "FY 2023-2024"). \
   When a request specifies named columns (e.g. Buyer, Payer, Bill Details) and target worksheets (e.g. AT&T, Vodafone), ALWAYS generate read and write steps mapping Buyer=A2, Payer=B2, Bill Details=C2 under header row 1. NEVER emit a clarify step when worksheet names and column names are present in the prompt.
 - A later step that consumes an earlier step's extracted value must set \
   "value_ref" to "step_<N>.value" and "depends_on": [<N>], not restate \
