@@ -6,7 +6,7 @@ Where `c15` executes one predetermined `{operation, url, selector}` action
 per call, this component decides *for itself*, step by step, which
 sequence of navigate/click/fill/extract actions to take, via a
 [LangGraph](https://github.com/langchain-ai/langgraph) ReAct agent over a
-local [Ollama](https://ollama.com) model (`langchain-ollama`).
+tool-calling model hosted on [Groq](https://groq.com) (`langchain-groq`).
 
 Conceptually this is what `c04_planner` would drive one `ActionRequest` at
 a time in the full pipeline; here it's built as a self-contained loop so it
@@ -27,15 +27,11 @@ not a drop-in replacement for the gated pipeline.
 
 ## Setup
 
-This needs a local Ollama server with a **tool-calling-capable** model
-pulled — this was written and documented on a machine that didn't have one
-pulled, so **you'll need to do this setup yourself**:
+This needs a `GROQ_API_KEY` (see the repo root `.env`) — Groq's free tier
+covers a **tool-calling-capable** model (`llama-3.3-70b-versatile` by
+default):
 
 ```bash
-# install Ollama if you don't have it: https://ollama.com/download
-ollama serve &                 # if not already running as a service
-ollama pull qwen2.5:7b         # or another tool-calling model (llama3.1, mistral-nemo, ...)
-
 pip install -r components/c17_browser_agent/requirements.txt
 python -m playwright install chromium   # if c15/c17's Playwright browser isn't already installed
 ```
@@ -57,8 +53,8 @@ print(outcome["result"])       # the agent's final natural-language answer
 print(outcome["step_count"])   # how many graph steps it took
 ```
 
-`run()` accepts optional `model`, `base_url`, `max_steps`, and `output_dir`
-overrides (each also configurable via `OLLAMA_MODEL`, `OLLAMA_BASE_URL`,
+`run()` accepts optional `model`, `api_key`, `max_steps`, and `output_dir`
+overrides (each also configurable via `GROQ_MODEL`, `GROQ_API_KEY`,
 `BROWSER_AGENT_MAX_STEPS`, `BROWSER_AGENT_OUTPUT_DIR` env vars) — resolved
 at call time, not import time, so a single process can run several tasks
 with different settings.
@@ -93,9 +89,9 @@ same query against Bing returned real results.
 pytest components/c17_browser_agent
 ```
 
-Skips cleanly if Ollama isn't reachable at `localhost:11434` — this
-component was written to be tested on a different machine than the one
-that wrote it, so don't be surprised if it skips here. Covers: reading a
+Skips cleanly if `GROQ_API_KEY` isn't set — this component was written to
+be tested on a different machine than the one that wrote it, so don't be
+surprised if it skips here. Covers: reading a
 known value off the local `c15` fixture page and saving it to a file
 (asserts the file's actual on-disk content, not just the agent's claim),
 and that an impossible instruction terminates within the step budget
@@ -118,5 +114,5 @@ and that an impossible instruction terminates within the step budget
 
 ## Dependencies
 
-`langchain`, `langchain-ollama`, `langgraph`, `playwright` (plus a running
-Ollama server with a tool-calling model pulled — not a pip dependency).
+`langchain`, `langchain-groq`, `langgraph`, `playwright` (plus a
+`GROQ_API_KEY` — not a pip dependency).

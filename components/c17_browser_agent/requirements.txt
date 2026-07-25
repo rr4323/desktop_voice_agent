@@ -1,4 +1,4 @@
 langchain
-langchain-ollama
+langchain-groq
 langgraph
 playwright

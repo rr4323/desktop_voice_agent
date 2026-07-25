@@ -7,11 +7,19 @@ calls while it figures out the next step for itself. This is a separate,
 small implementation rather than an import from c15 — components in this
 repo don't call into each other's code, only exchange JSON, so each keeps
 its own copy of what it needs.
+
+Async, not sync, Playwright API: LangGraph's `create_react_agent` runs its
+tool nodes as coroutines even when the overall graph is invoked via
+`.ainvoke()` from a single thread — Playwright's *sync* API asserts every
+call happens on the exact thread that started it, which broke the moment
+a tool call landed on a different thread than `BrowserSession.__init__`
+ran on ("Cannot switch to a different thread"). The async API has no such
+constraint since everything runs on one event loop.
 """
 import json
 from typing import Any
 
-from playwright.sync_api import sync_playwright
+from playwright.async_api import async_playwright
 
 _DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -33,32 +41,50 @@ _DESCRIBE_JS = """(els) => els.map((el) => ({
     id: el.getAttribute('id') || '',
     placeholder: el.getAttribute('placeholder') || '',
     aria_label: el.getAttribute('aria-label') || '',
-    text: (el.innerText || el.value || '').trim().slice(0, 80),
+    text: (el.innerText || el.value || '').trim().slice(0, 50),
     visible: !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length),
 }))"""
 
+# Groq's free-tier TPM limits (6000-8000 depending on model) are easily
+# blown by a single page's worth of context — a search-results page can
+# have dozens of links and thousands of characters of body text. These
+# caps keep each tool result small enough that a few turns of accumulated
+# conversation history still fit the budget.
+_MAX_EXTRACT_CHARS = 4000
+
 
 class BrowserSession:
-    """One browser + one page, kept alive across an agent's tool calls."""
+    """One browser + one page, kept alive across an agent's tool calls.
 
-    def __init__(self, headless: bool = True):
-        self._playwright = sync_playwright().start()
-        self._browser = self._playwright.chromium.launch(headless=headless)
-        self._page = self._browser.new_page(user_agent=_DEFAULT_USER_AGENT, locale="en-US")
+    Construction is async (`await BrowserSession.create(...)`) since
+    Playwright's async API has no sync constructor to call from `__init__`.
+    """
 
-    def navigate(self, url: str) -> str:
-        self._page.goto(url, wait_until="domcontentloaded")
-        self._page.wait_for_timeout(1000)
-        return self.describe_page()
+    def __init__(self, playwright, browser, page):
+        self._playwright = playwright
+        self._browser = browser
+        self._page = page
 
-    def describe_page(self, max_elements: int = 40) -> str:
+    @classmethod
+    async def create(cls, headless: bool = True) -> "BrowserSession":
+        playwright = await async_playwright().start()
+        browser = await playwright.chromium.launch(headless=headless)
+        page = await browser.new_page(user_agent=_DEFAULT_USER_AGENT, locale="en-US")
+        return cls(playwright, browser, page)
+
+    async def navigate(self, url: str) -> str:
+        await self._page.goto(url, wait_until="domcontentloaded")
+        await self._page.wait_for_timeout(1000)
+        return await self.describe_page()
+
+    async def describe_page(self, max_elements: int = 18) -> str:
         """Return a compact, LLM-readable JSON summary of the current page:
         title, URL, and a numbered list of visible interactive elements
         with a usable selector for each. This is what lets the agent decide
         what to click/fill next on a page it's never seen before, the same
         way c14's role-based search lets it find an unnamed desktop widget.
         """
-        raw_elements = self._page.eval_on_selector_all(_INTERACTIVE_SELECTOR, _DESCRIBE_JS)
+        raw_elements = await self._page.eval_on_selector_all(_INTERACTIVE_SELECTOR, _DESCRIBE_JS)
         visible = [el for el in raw_elements if el["visible"]][:max_elements]
         for i, el in enumerate(visible):
             el["index"] = i
@@ -67,10 +93,13 @@ class BrowserSession:
 
         summary = {
             "url": self._page.url,
-            "title": self._page.title(),
+            "title": await self._page.title(),
             "interactive_elements": visible,
         }
-        return json.dumps(summary, indent=2)
+        # No indent= here: pretty-printed whitespace burns real tokens
+        # against Groq's free-tier per-minute budget for no benefit to the
+        # model reading it.
+        return json.dumps(summary, separators=(",", ":"))
 
     @staticmethod
     def _build_selector(el: dict[str, Any]) -> str:
@@ -86,27 +115,30 @@ class BrowserSession:
             return f'{tag}:has-text("{safe_text}")'
         return f"{tag} >> nth={el['index']}"
 
-    def click(self, selector: str) -> str:
-        self._page.locator(selector).first.click(timeout=8000)
-        self._page.wait_for_timeout(800)
-        return self.describe_page()
+    async def click(self, selector: str) -> str:
+        await self._page.locator(selector).first.click(timeout=8000)
+        await self._page.wait_for_timeout(800)
+        return await self.describe_page()
 
-    def fill(self, selector: str, value: str) -> str:
-        self._page.locator(selector).first.fill(value, timeout=8000)
+    async def fill(self, selector: str, value: str) -> str:
+        await self._page.locator(selector).first.fill(value, timeout=8000)
         return f"Filled {selector!r} with {value!r}"
 
-    def press_key(self, selector: str, key: str) -> str:
-        self._page.locator(selector).first.press(key, timeout=8000)
-        self._page.wait_for_timeout(1000)
-        return self.describe_page()
+    async def press_key(self, selector: str, key: str) -> str:
+        await self._page.locator(selector).first.press(key, timeout=8000)
+        await self._page.wait_for_timeout(1000)
+        return await self.describe_page()
 
-    def extract_text(self, selector: str = "body") -> str:
-        return self._page.locator(selector).first.inner_text(timeout=8000)
+    async def extract_text(self, selector: str = "body") -> str:
+        text = await self._page.locator(selector).first.inner_text(timeout=8000)
+        if len(text) > _MAX_EXTRACT_CHARS:
+            text = text[:_MAX_EXTRACT_CHARS] + f"\n...[truncated, {len(text)} chars total]"
+        return text
 
-    def screenshot(self, path: str) -> str:
-        self._page.screenshot(path=path, full_page=True)
+    async def screenshot(self, path: str) -> str:
+        await self._page.screenshot(path=path, full_page=True)
         return path
 
-    def close(self) -> None:
-        self._browser.close()
-        self._playwright.stop()
+    async def close(self) -> None:
+        await self._browser.close()
+        await self._playwright.stop()

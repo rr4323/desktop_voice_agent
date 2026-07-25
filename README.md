@@ -1,23 +1,51 @@
-# Part 4 — Execution & Audit Module
-
-This package contains the Part 4 implementation: execution adapters (PDF/XLSX/PPTX/DOCX), working memory, verification, state manager, and audit logger.
-
-Features:
-- Adapters: `PDFAdapter`, `XLSXAdapter`, `PPTXAdapter`, `DocxAdapter` (read/write for paragraphs and table cells).
-- Working memory: short-lived task-scoped key-value store (`part4/memory.py`).
-- Verification: re-reads targets and reports `postcondition_met` and `anomaly_flag` (`part4/verification.py`).
-- State manager: simple task graph with rollback support (`part4/state_manager.py`).
-- Audit logger: JSON-lines audit with PII masking (`part4/audit_logger.py`).
-
-Demos and tests:
-- Run the demo: `python demo/run_demo.py` (creates temp files   and audit logs).
-- Run tests: `python -m pytest tests` (requires dependencies from `requirements.txt`).
-
 # Voice-Controlled Desktop Agent (PDF / XLSX / PPTX)
 
 DTDL HackFest — Problem Statement 2. See [`docs/TDD.md`](docs/TDD.md) for the
 full architecture and [`docs/Component_IO_Spec.md`](docs/Component_IO_Spec.md)
 for the exact input/output contract of every component.
+
+## Running the unified agent
+
+Every component below is now wired together into one running agent —
+accepts user **text or audio**, drives the TDD §5.1 pipeline (ASR → Plan →
+Policy → Confirm → Execute → Verify → Audit → Respond) as a **LangGraph
+`StateGraph`** (`agent/graph.py`), and returns **text or audio** — exposed
+over **FastAPI + WebSocket**:
+
+```bash
+pip install -r requirements.txt
+# .env (repo root, gitignored) — server/app.py loads it at startup:
+#   GROQ_API_KEY=...           # required — c04_planner and c17_browser_agent's LLM calls
+#   LANGFUSE_SECRET_KEY=...    # optional — enables tracing (agent/tracing.py); omit to skip it
+#   LANGFUSE_PUBLIC_KEY=...
+#   LANGFUSE_BASE_URL=...
+uvicorn server.app:app --reload
+```
+
+Connect to `ws://localhost:8000/ws/agent/<session_id>` and send one JSON
+message per turn — `{"type": "text", "text": "..."}` or
+`{"type": "audio", "audio_b64": "...", "mime": "audio/wav"}` — and reply to
+any `confirm_request` event the same way. See `server/ws.py`'s module
+docstring for the full protocol.
+
+- **`agent/`** — the StateGraph: `state.py` (shared state shape),
+  `nodes/` (one module per pipeline stage), `graph.py` (wires them, with a
+  LangGraph checkpointer so an `ASK_CONFIRM` genuinely pauses the graph via
+  `interrupt()` and resumes exactly where it left off), `tracing.py`
+  (optional Langfuse instrumentation — a no-op unless `LANGFUSE_SECRET_KEY`/
+  `LANGFUSE_PUBLIC_KEY` are set).
+- **`tools/`** — one wrapper per execution adapter, dispatched by
+  `target["app"]` (see `tools/registry.py`). Includes `tools/sub_agent/
+  browser_agent_tool.py`, which wraps `c17_browser_agent`'s autonomous
+  LangGraph browser agent as the `"browser_agent"` tool — since that
+  sub-agent doesn't gate its own internal actions, `c05_policy_engine`
+  always requires confirmation before this tool runs.
+- **`server/`** — the FastAPI app (`app.py`) and WebSocket handler
+  (`ws.py`) implementing the protocol above.
+- **`components/c13_orchestrator`** still exists as a thin, non-interactive
+  synchronous wrapper around `agent/graph.py`, so that component's own
+  directory/tests stay meaningful as the "run the whole pipeline
+  end-to-end" entry point the spec describes.
 
 ## How this repo is organized
 
@@ -42,18 +70,20 @@ Every component from the spec gets its own top-level folder under
 | 14 | [`components/c14_accessibility_adapter/`](components/c14_accessibility_adapter/) | Read/write live desktop UI elements via AT-SPI, for content the format-native adapters can't resolve. Secondary/fallback path. |
 | 15 | [`components/c15_browser_adapter/`](components/c15_browser_adapter/) | Read/write a value on a web page (e.g. an internal ops dashboard), same read/write-with-provenance shape as the file adapters. |
 | 16 | [`components/c16_libreoffice_adapter/`](components/c16_libreoffice_adapter/) | Headless document conversion (`soffice --headless --convert-to`) for legacy formats or PDF export the native-library adapters don't handle. |
-| 17 | [`components/c17_browser_agent/`](components/c17_browser_agent/) | Generic version of `c15`: given a natural-language instruction, autonomously drives a browser via a LangGraph ReAct agent over a local Ollama model. ⚠️ does not route through the Policy Engine — see its README. |
+| 17 | [`components/c17_browser_agent/`](components/c17_browser_agent/) | Generic version of `c15`: given a natural-language instruction, autonomously drives a browser via a LangGraph ReAct agent over a local Ollama model. ⚠️ does not route through the Policy Engine — see its README. Wrapped as the `sub_agent` tool, see "Running the unified agent" above. |
+| 18 | [`components/c18_docx_adapter/`](components/c18_docx_adapter/) | Read/write Word document paragraphs and table cells — promoted from an earlier prototype, same pattern as 14-17. |
 
-Components 14-17 aren't in the original `Component_IO_Spec.md` — they were
+Components 14-18 aren't in the original `Component_IO_Spec.md` — they were
 added afterward: 14 and 15 to explicitly demonstrate the "operate the
 desktop using appropriate GUI, accessibility, browser, or automation
 interfaces" capability beyond the document-format adapters, 16 to cover
 legacy-format conversion (`.doc`/`.xls`/`.ppt`) that the native libraries
-can't read or write at all, and 17 as a generic, LLM-driven version of 15
-built for a specific request to test that capability end-to-end. See the
-"Extensions beyond the
-original spec" section at the bottom of
-[`docs/Component_IO_Spec.md`](docs/Component_IO_Spec.md) for their contracts.
+can't read or write at all, 17 as a generic, LLM-driven version of 15 built
+for a specific request to test that capability end-to-end, and 18 to give
+`.docx` the same first-class adapter treatment as PDF/XLSX/PPTX already
+had. See the "Extensions beyond the original spec" section at the bottom
+of [`docs/Component_IO_Spec.md`](docs/Component_IO_Spec.md) for 14-17's
+contracts (18 predates that section but follows the same shape).
 
 **The hard rule that makes parallel work possible:** components never import
 or call each other directly. They only exchange the JSON-shaped data
@@ -61,8 +91,9 @@ structures defined in [`schemas/`](schemas/) (mirrors TDD §5.2 and the
 Component I/O Spec). If you're building component 6 and need component 5's
 output, don't wait for someone to finish it — write a fixture in
 `schemas/examples/` that matches the documented shape and build against that.
-The orchestrator (component 13) is the only place these get wired together
-for real, and it's built last.
+`agent/graph.py` and `tools/` are where these get wired together for real
+(see "Running the unified agent" above) — every component below is still
+independently buildable/testable exactly as described.
 
 ## Working on your own component
 

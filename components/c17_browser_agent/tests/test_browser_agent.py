@@ -2,14 +2,12 @@
 
 Run in isolation: pytest components/c17_browser_agent
 
-These need a running Ollama server with a tool-calling-capable model
-pulled (e.g. `ollama pull qwen2.5:7b`) and are skipped cleanly if that's
-not available — this component was written to be tested on a machine with
-Ollama set up, not necessarily the one running the rest of this repo's
-suite.
+These need a GROQ_API_KEY (see .env) and are skipped cleanly if that's not
+set — this component was written to be tested on a machine with Groq
+access configured, not necessarily the one running the rest of this
+repo's suite.
 """
 import os
-import urllib.request
 
 import pytest
 
@@ -20,18 +18,10 @@ FIXTURE_URL = "file://" + os.path.join(
 )
 
 
-def _ollama_available(base_url: str = "http://localhost:11434") -> bool:
-    try:
-        with urllib.request.urlopen(f"{base_url}/api/tags", timeout=2):
-            return True
-    except Exception:
-        return False
-
-
 @pytest.fixture(autouse=True)
-def skip_if_no_ollama():
-    if not _ollama_available():
-        pytest.skip("Ollama not reachable at localhost:11434 — pull a model and run `ollama serve` first")
+def skip_if_no_groq_api_key():
+    if not os.environ.get("GROQ_API_KEY"):
+        pytest.skip("GROQ_API_KEY not set — see .env")
 
 
 def test_agent_reads_a_known_value_and_saves_it_to_file(tmp_path):
