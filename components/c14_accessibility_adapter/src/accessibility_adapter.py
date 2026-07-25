@@ -30,21 +30,54 @@ def _ensure_init() -> None:
         _initialized = True
 
 
-def _find_by_name(node, name: str):
+def _matches(node, name: str | None, role: str | None) -> bool:
     try:
-        if node.get_name() == name:
-            return node
+        name_ok = name is None or node.get_name() == name
     except GLib.Error:
-        pass
+        name_ok = False
+    try:
+        role_ok = role is None or node.get_role_name() == role
+    except GLib.Error:
+        role_ok = False
+    return name_ok and role_ok
+
+
+def _visible_area(node) -> int:
+    try:
+        if "Component" not in node.get_interfaces():
+            return -1
+        extents = Atspi.Component.get_extents(node, Atspi.CoordType.SCREEN)
+    except GLib.Error:
+        return -1
+    if extents.width <= 0 or extents.height <= 0:
+        return -1
+    return extents.width * extents.height
+
+
+def _collect_matches(node, name: str | None, role: str | None, depth: int = 0, max_depth: int = 40) -> list:
+    matches = [node] if _matches(node, name, role) else []
+    if depth >= max_depth:
+        return matches
     for i in range(node.get_child_count()):
         try:
             child = node.get_child_at_index(i)
         except GLib.Error:
             continue
-        found = _find_by_name(child, name)
-        if found is not None:
-            return found
-    return None
+        matches.extend(_collect_matches(child, name, role, depth + 1, max_depth))
+    return matches
+
+
+def _find_element(app, name: str | None, role: str | None):
+    matches = _collect_matches(app, name, role)
+    if not matches:
+        return None
+    # Many real apps (LibreOffice, gedit, ...) expose their main document
+    # editing surface with no accessible name at all, sometimes alongside
+    # other same-role elements that are hidden/off-screen (e.g. an
+    # unrealized popup entry sitting at degenerate coordinates). When more
+    # than one node matches, prefer the largest on-screen one — the same
+    # heuristic a person would use to pick out "the big text area."
+    return max(matches, key=_visible_area)
 
 
 def _find_app(app_name: str):
@@ -62,30 +95,42 @@ def _find_app(app_name: str):
 
 
 def read_or_write(request: dict[str, Any]) -> dict[str, Any]:
-    """Read or write a named accessible element in a running app.
+    """Read or write an accessible element in a running app, found by name
+    and/or role (at least one of the two is required).
 
-    request (read):  {"operation": "read", "app_name": "...", "element_name": "..."}
-    request (write): {"operation": "write", "app_name": "...", "element_name": "...", "value": "..."}
+    request (read):  {"operation": "read", "app_name": "...", "element_name"?: "...", "role"?: "..."}
+    request (write): {"operation": "write", "app_name": "...", "element_name"?: "...", "role"?: "...", "value": "..."}
+
+    `element_name` alone is enough for widgets with a real accessible name
+    (e.g. a labeled entry). `role` (e.g. "text") is for elements that don't
+    have one — common for a document editor's main text area — and, when it
+    matches more than one element, resolves to the largest on-screen match.
     """
     operation = request["operation"]
     app_name = request["app_name"]
-    element_name = request["element_name"]
+    element_name = request.get("element_name")
+    role = request.get("role")
+    if element_name is None and role is None:
+        raise ValueError("request must include element_name and/or role")
 
     app = _find_app(app_name)
     if app is None:
         raise LookupError(f"no running app found matching {app_name!r} in the accessibility tree")
 
-    element = _find_by_name(app, element_name)
+    element = _find_element(app, element_name, role)
     if element is None:
-        raise LookupError(f"no accessible element named {element_name!r} found in app {app_name!r}")
+        raise LookupError(
+            f"no accessible element matching name={element_name!r} role={role!r} found in app {app_name!r}"
+        )
 
-    role = element.get_role_name()
+    element_role = element.get_role_name()
+    label = element_name if element_name is not None else role
 
     if operation == "read":
         value = Atspi.Text.get_text(element, 0, -1)
         return {
             "value": value,
-            "provenance": {"app": app_name, "element": element_name, "role": role},
+            "provenance": {"app": app_name, "element": label, "role": element_role},
             "extraction_method": "accessibility_tree",
         }
 
@@ -93,7 +138,7 @@ def read_or_write(request: dict[str, Any]) -> dict[str, Any]:
         value = request["value"]
         if "EditableText" not in element.get_interfaces():
             raise ValueError(
-                f"element {element_name!r} (role={role}) is not editable via the accessibility tree"
+                f"element {label!r} (role={element_role}) is not editable via the accessibility tree"
             )
         previous_value = Atspi.Text.get_text(element, 0, -1)
         Atspi.EditableText.delete_text(element, 0, -1)
@@ -101,7 +146,7 @@ def read_or_write(request: dict[str, Any]) -> dict[str, Any]:
         new_value = Atspi.Text.get_text(element, 0, -1)
         return {
             "success": True,
-            "element": element_name,
+            "element": label,
             "previous_value": previous_value,
             "new_value": new_value,
         }
@@ -110,18 +155,24 @@ def read_or_write(request: dict[str, Any]) -> dict[str, Any]:
 
 
 if __name__ == "__main__":
-    # Manual smoke test: python -m components.c14_accessibility_adapter.src.accessibility_adapter <app_name> <element_name> [value_to_write]
+    # Manual smoke test:
+    #   python -m components.c14_accessibility_adapter.src.accessibility_adapter <app_name> --name <element_name> [value]
+    #   python -m components.c14_accessibility_adapter.src.accessibility_adapter <app_name> --role <role> [value]
     import json
     import sys
 
     app_name_arg = sys.argv[1]
-    element_name_arg = sys.argv[2]
-    if len(sys.argv) > 3:
-        print(json.dumps(read_or_write({
-            "operation": "write", "app_name": app_name_arg,
-            "element_name": element_name_arg, "value": sys.argv[3],
-        }), indent=2))
+    selector_kind = sys.argv[2]  # "--name" or "--role"
+    selector_value = sys.argv[3]
+    rest = sys.argv[4:]
+
+    req: dict[str, Any] = {"app_name": app_name_arg}
+    req["element_name" if selector_kind == "--name" else "role"] = selector_value
+
+    if rest:
+        req["operation"] = "write"
+        req["value"] = rest[0]
     else:
-        print(json.dumps(read_or_write({
-            "operation": "read", "app_name": app_name_arg, "element_name": element_name_arg,
-        }), indent=2))
+        req["operation"] = "read"
+
+    print(json.dumps(read_or_write(req), indent=2))

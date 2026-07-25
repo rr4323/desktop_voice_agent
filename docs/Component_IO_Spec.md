@@ -454,10 +454,82 @@ file-format adapter.
 
 **Dependencies to mock:** none — but needs a real (headless) browser binary (`playwright install chromium`), not just a pip install.
 
+---
+
+## 16. LibreOffice Adapter
+
+**Responsibility:** Convert a document to another format via headless
+LibreOffice (`soffice --headless --convert-to`) — for legacy formats the
+native-library adapters don't read/write at all (`.doc`, `.xls`, `.ppt`),
+or producing a PDF from an XLSX/PPTX for distribution. A completely
+different mechanism from the accessibility adapter (§14): no GUI, no
+display, no accessibility tree — this drives LibreOffice's own batch
+conversion engine directly. Secondary path, same reasoning as 14/15: prefer
+the native libraries whenever the format is one they already handle.
+
+**Input**
+```json
+{ "file": "network_report.doc", "target_format": "pdf" }
+```
+
+**Output**
+```json
+{
+  "success": true,
+  "input_file": "network_report.doc",
+  "output_file": "network_report.pdf",
+  "target_format": "pdf"
+}
+```
+
+**Standalone test**
+- Convert a plain-text fixture to PDF and check the real output: correct path, non-zero size, genuine `%PDF-` magic-byte header — not just "the process exited 0."
+- Assert: an `output_dir` override lands the file in the right place; a missing input file raises a clean error before `soffice` is even invoked; a bogus target format raises a clean error rather than silently producing nothing.
+- Each call uses its own throwaway `UserInstallation` profile directory — without this, LibreOffice's single-instance profile lock can make a conversion silently hang or fail if another `soffice` process is already running under the same profile.
+
+**Dependencies to mock:** none — but needs LibreOffice (`soffice`) installed on the system, not a pip package.
+
+---
+
+## 17. Browser Agent
+
+**Responsibility:** Given a natural-language instruction, autonomously
+drive a browser to complete it — the generic version of component 15.
+Where 15 executes one predetermined `{operation, url, selector}` action per
+call, this component decides for itself, step by step, which sequence of
+navigate/click/fill/extract actions to take, via a LangGraph ReAct agent
+over a local Ollama model (`langchain-ollama`). Built directly from testing
+component 15 end-to-end against a real search engine and being asked
+whether the same capability would generalize to an arbitrary
+instruction — this is that generalization, made concrete.
+
+**⚠️ Does not route through the Policy Engine.** Every tool call the agent
+decides on executes immediately and autonomously; none of this repo's
+`ASK_CONFIRM`/`DENY` gating applies to it. Deliberate scope choice for this
+standalone sub-agent — treat it as a research/demo component, not a
+drop-in replacement for the gated pipeline.
+
+**Input:** a natural-language instruction, e.g. `"open bing, search for
+loop engineering, extract the results text, and save it to
+loop_engineering.txt"`.
+
+**Output**
+```json
+{ "result": "<final natural-language answer, including any file path saved>", "step_count": 8 }
+```
+
+**Standalone test**
+- Needs a local Ollama server with a tool-calling-capable model pulled (e.g. `qwen2.5:7b`) — skips cleanly if unreachable.
+- Assert: the agent can navigate to a local fixture page (reusing component 15's `dashboard.html`), read a known value, and save it to a file — checked by reading the actual saved file's content, not just the agent's claim.
+- Assert: an impossible instruction terminates within the configured step budget (LangGraph's `GraphRecursionError` caught and turned into a clean result) rather than hanging or raising.
+
+**Dependencies to mock:** none — but needs a running Ollama server with a model pulled, and its own Playwright-based persistent browser session (not a pip-installable dependency in the usual sense).
+
 ## Suggested build/test order — extension
 
-Components 14 and 15 aren't on the critical path for the core PDF→XLSX→PPTX
+Components 14-16 aren't on the critical path for the core PDF→XLSX→PPTX
 demo trace (§10) and depend on nothing else in the spec, so they can be
 built any time after the Policy Engine — but budget extra setup time for
-the system packages/browser binary they each need, which none of the
-original 13 components require.
+the system packages/browser binary/LibreOffice install they each need,
+which none of the original 13 components require. Component 17 additionally
+needs a local Ollama model pulled before it can run at all.

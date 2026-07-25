@@ -1,0 +1,6 @@
+- Guardrail
+- Evaluation
+- Invoice upload to revenew excel update
+- User ask to search the web like shoes, modi, ai news
+- User journaling
+- Open Outlook, create a new email to my manager, locate yesterday's report automatically, attach the report, generate a concise summary of its contents, use the summary as the email body, display the draft for my review, make any changes I request, and send the email only after I explicitly approve it.

@@ -1,0 +1,100 @@
+{
+  "id": "c7d24238",
+  "created_at": "2026-07-24T11:35:40.844066+00:00",
+  "status": "done",
+  "prompt": "Locate information in the PDF and enter it into the docx",
+  "files": [
+    "/Users/srishti/Desktop/docuHandlers/sample_network_report.pdf",
+    "/Users/srishti/Desktop/docuHandlers/executive_brief.docx"
+  ],
+  "intent": {
+    "task_type": "pdf_to_doc",
+    "decision": "go",
+    "reason": null,
+    "source_pdf": "/Users/srishti/Desktop/docuHandlers/sample_network_report.pdf",
+    "target_document": "/Users/srishti/Desktop/docuHandlers/executive_brief.docx"
+  },
+  "history": [
+    {
+      "prompt": "Locate information in the PDF and enter it into the docx",
+      "intent": {
+        "task_type": "pdf_to_doc",
+        "decision": "go",
+        "reason": null,
+        "source_pdf": "/Users/srishti/Desktop/docuHandlers/sample_network_report.pdf",
+        "target_document": "/Users/srishti/Desktop/docuHandlers/executive_brief.docx"
+      }
+    }
+  ],
+  "result": {
+    "status": "done",
+    "preview": "Updated document from /Users/srishti/Desktop/docuHandlers/sample_network_report.pdf\n\nReplacements made:\n  q3_revenue_value \u2192 $2.4M\n  q3_revenue_value \u2192 $2.4M\n  q3_churn_value \u2192 1.2%\n\nOutput file: /Users/srishti/Desktop/docuHandlers/executive_brief_updated.docx",
+    "output_file": "/Users/srishti/Desktop/docuHandlers/executive_brief_updated.docx",
+    "log": [
+      {
+        "stage": "confidence_gate_target",
+        "result": {
+          "decision": "go",
+          "reason": "Target file exists and is the right type."
+        }
+      },
+      {
+        "stage": "confidence_gate_pdf",
+        "result": {
+          "decision": "go",
+          "reason": "PDF has a readable text layer."
+        }
+      },
+      {
+        "stage": "document_handler",
+        "result": {
+          "output_path": "/Users/srishti/Desktop/docuHandlers/executive_brief_updated.docx",
+          "replacements": [
+            {
+              "placeholder": "q3_revenue_value",
+              "value": "$2.4M"
+            },
+            {
+              "placeholder": "q3_revenue_value",
+              "value": "$2.4M"
+            },
+            {
+              "placeholder": "q3_churn_value",
+              "value": "1.2%"
+            }
+          ],
+          "values_available": {
+            "q3_revenue": "$2.4M",
+            "q3_revenue_value": "$2.4M",
+            "q3_total_revenue": "$2.4M",
+            "revenue": "$2.4M",
+            "subscriber_churn": "1.2%",
+            "subscriber_churn_value": "1.2%",
+            "q3_churn_value": "1.2%",
+            "q3_churn": "1.2%",
+            "churn_rate": "1.2%",
+            "churn": "1.2%",
+            "network_availability": "99.95%",
+            "network_availability_value": "99.95%",
+            "q3_network_availability": "99.95%",
+            "arpu": "$48.50",
+            "arpu_value": "$48.50",
+            "q3_arpu": "$48.50",
+            "revenue_value": "2.0$M",
+            "telecom": "Network Performance & Financial",
+            "author": "Operations Team",
+            "period": "Fiscal Year 2026",
+            "this": "document outlines operational updates and financial summaries for key operational quarters.",
+            "section": "2: Q3 Earnings & KPI Overview",
+            "the": "table below details financial figures for the third quarter (Q3).",
+            "metric": "Target Q3 Actual Status",
+            "subscriber": "Churn 1.5% 1.2% Optimal",
+            "network": "Availability 99.90% 99.95% Optimal",
+            "note": "High ARPU in Q3 was driven by 5G enterprise plan migrations."
+          },
+          "source": "/Users/srishti/Desktop/docuHandlers/sample_network_report.pdf"
+        }
+      }
+    ]
+  }
+}

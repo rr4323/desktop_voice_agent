@@ -1,6 +1,12 @@
 # Aggregates every component's own requirements.txt.
-# Install this for integration work (orchestrator, end-to-end tests).
+# Install this for integration work (agent/, server/, tools/, end-to-end tests).
 # For working on a single component, use that component's requirements.txt instead.
+#
+# pdfplumber/openpyxl/python-pptx/python-docx are intentionally *not*
+# pinned here — they come in unpinned via components/c06-c08's and
+# docuHandlers' own requirements.txt below. This file used to pin exact
+# old versions directly, which silently conflicted with docuHandlers'
+# newer minimums the moment both were installed together.
 pytest
 jsonschema
 -r components/c01_asr/requirements.txt
@@ -16,3 +22,23 @@ jsonschema
 -r components/c11_state_manager/requirements.txt
 -r components/c12_audit_logger/requirements.txt
 -r components/c13_orchestrator/requirements.txt
+-r components/c14_accessibility_adapter/requirements.txt
+-r components/c15_browser_adapter/requirements.txt
+-r components/c16_libreoffice_adapter/requirements.txt
+-r components/c17_browser_agent/requirements.txt
+-r components/c18_docx_adapter/requirements.txt
+-r docuHandlers/requirements.txt
+
+# agent/ (LangGraph StateGraph orchestration) + server/ (FastAPI/WebSocket) —
+# not tied to any single numbered component.
+langgraph
+# File-backed checkpointer (agent/graph.py's get_graph()) so a paused
+# ASK_CONFIRM/clarify task survives a server restart instead of only
+# living in the InMemorySaver default.
+langgraph-checkpoint-sqlite
+fastapi
+uvicorn[standard]
+python-dotenv
+# Tracing (agent/tracing.py) — a no-op unless LANGFUSE_SECRET_KEY/LANGFUSE_PUBLIC_KEY
+# are set in .env; see that module's docstring.
+langfuse

@@ -21,12 +21,27 @@ file to read/write.
 
 ## Input
 
+Find by accessible name (works for widgets that have one, e.g. a labeled entry):
+
 ```json
 {"operation": "read", "app_name": "kpi_dashboard", "element_name": "revenue_field"}
 ```
+
+Find by role instead — needed for apps whose main content area has **no**
+accessible name at all. This is the common case, not the exception: neither
+LibreOffice Writer's document canvas nor gedit's `GtkSourceView` expose a
+name, only a role (`"document text"` / `"text"` respectively). When more
+than one element matches, the adapter resolves to the **largest on-screen
+match** — real apps can have other same-role elements that are hidden or
+degenerate-sized (e.g. an unrealized popup entry), and the biggest visible
+one is reliably the actual content area:
+
 ```json
-{"operation": "write", "app_name": "kpi_dashboard", "element_name": "revenue_field", "value": "2.4M"}
+{"operation": "write", "app_name": "gedit", "role": "text", "value": "my name is rajeev\n2026-07-24"}
 ```
+
+`element_name` and `role` can be combined for extra precision; at least one
+of the two is required.
 
 ## Output
 
@@ -56,15 +71,16 @@ pytest components/c14_accessibility_adapter
 whole test session — its own `Xvfb` display, its own D-Bus session bus, and
 its own AT-SPI bus launcher — so these tests never touch whatever real
 desktop session pytest happens to be running under. Each test then launches
-`fixtures/accessible_test_app.py` (a minimal GTK window with one editable
-entry and one read-only label, both with known accessible names) inside
-that isolated display and drives it via the real adapter — no mocking of
-the accessibility tree.
+`fixtures/accessible_test_app.py` (a minimal GTK window with a named entry,
+a read-only label, and a tiny unnamed decoy entry — see below) inside that
+isolated display and drives it via the real adapter — no mocking of the
+accessibility tree.
 
 Covers: reading a value with provenance, a write-then-read round trip,
-writing to a read-only element raising a clean error, and unknown
-app/element name raising a clean `LookupError` rather than a raw AT-SPI/GLib
-exception.
+writing to a read-only element raising a clean error, unknown app/element
+name raising a clean `LookupError` rather than a raw AT-SPI/GLib exception,
+role-only lookup resolving to the real element over a same-role decoy, and
+a request with neither `element_name` nor `role` being rejected up front.
 
 ## Implementation notes
 
@@ -76,6 +92,50 @@ exception.
   `EditableText` interfaces — entries, text fields, labels). Non-text
   controls (checkboxes, sliders, etc.) aren't handled; extend
   `read_or_write` if a task needs one.
+- **Verified against real gedit**, not just the GTK fixture app: launched
+  gedit in an offscreen `Xvfb` session, used this exact `read_or_write` to
+  write `"my name is rajeev"` + the date into its document (found by
+  `role="text"`, correctly picking the real editor over an internal
+  degenerate-sized decoy element gedit itself exposes), then drove the
+  native GTK Save-As dialog via AT-SPI (`Atspi.Action.do_action` on the
+  Save button, `EditableText` on the filename field) to save it to a real
+  `.txt` file — confirmed by reading the file back off disk afterward.
+  LibreOffice Writer was tried first and rejected as the demo target: its
+  document canvas doesn't implement `EditableText` in a way AT-SPI can
+  drive (a real, separate limitation from the role/name issue above).
+- **LibreOffice Writer's canvas resists synthetic input entirely, not just
+  `EditableText`.** Follow-up investigation (running a real window manager
+  — `mutter`, already installed — in the offscreen session) confirmed the
+  window itself renders correctly once a WM is present, and that real X
+  keyboard focus does land on the LO Writer window (verified via
+  `python-xlib`'s `get_input_focus()`, walking up to the named ancestor).
+  Synthetic keyboard/mouse events (`Atspi.generate_keyboard_event`,
+  `Atspi.generate_mouse_event`) were confirmed to work correctly against a
+  plain GTK entry in the very same session, ruling out an environment or
+  focus problem — yet those same events produce no effect on LO Writer's
+  document. This points to something LO-specific in how its canvas
+  processes input, not a fixable AT-SPI/window-manager configuration issue.
+  **The correct fix for LibreOffice specifically is not more GUI
+  automation** — it's LibreOffice's own UNO scripting API (`soffice
+  --accept=...`, driven via `python-uno`), a genuinely different automation
+  mechanism, the same way `c16`'s headless conversion is a different
+  mechanism from this component. Not implemented here; flagging it as the
+  known path if LO Writer read/write is needed later.
+- **A coordinate-based fallback was prototyped and confirmed to work, then
+  deliberately not adopted.** Raw XTest key/mouse synthesis via
+  `python-xlib` (bypassing AT-SPI's own synthesis entirely) *did*
+  successfully type into LO Writer's canvas — the text landed correctly and
+  was visually confirmed. It was rejected anyway: it depends on screen
+  coordinates, window placement, and a running window manager, which is
+  exactly the coordinate/vision-based fragility this component (and the
+  TDD's §12 preference for structured APIs over GUI simulation) is designed
+  to avoid. It would also only ever solve the *write* half — AT-SPI's
+  `Text` interface was independently confirmed broken for reading LO
+  Writer's document too (`get_text` returns empty, `get_character_count`
+  raises), so there'd be no reliable way to verify the write through this
+  component's own contract regardless. This component stays strictly
+  accessibility-tree-based; LO Writer's document body is out of scope for
+  it, full stop — use `c16` or UNO scripting for that app instead.
 
 ## Dependencies
 

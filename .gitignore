@@ -1,3 +1,7 @@
+env/
+__pycache__/
+.pytest_cache/
+.dist/
 .claude/settings.local.json
 .venv/
 __pycache__/
@@ -7,5 +11,5 @@ __pycache__/
 .env
 .DS_Store
 *.log
-data/
+data/*
 !data/.gitkeep

@@ -60,3 +60,21 @@ def test_unknown_element_raises_lookup_error(accessible_app):
         read_or_write({
             "operation": "read", "app_name": APP_NAME, "element_name": "no-such-element",
         })
+
+
+def test_role_only_lookup_picks_largest_onscreen_match(accessible_app):
+    """Real apps (gedit, LibreOffice) expose their main document editor with
+    no accessible name at all, sometimes alongside other same-role elements
+    that are hidden/degenerate-sized. The fixture app's decoy entry (role
+    "text", 1x1, unnamed) mirrors that: a role-only search must resolve to
+    the real, properly-sized entry, not the decoy.
+    """
+    result = read_or_write({"operation": "read", "app_name": APP_NAME, "role": "text"})
+
+    assert result["value"] == "initial value"
+    assert result["value"] != "decoy"
+
+
+def test_lookup_requires_name_or_role(accessible_app):
+    with pytest.raises(ValueError, match="element_name and/or role"):
+        read_or_write({"operation": "read", "app_name": APP_NAME})

@@ -1,0 +1,30 @@
+{
+  "id": "89ae5a68",
+  "created_at": "2026-07-24T11:05:00.577173+00:00",
+  "status": "cancelled",
+  "prompt": "Locate information in the PDF and enter it into the spreadsheet",
+  "files": [
+    "samples/q3_earnings.pdf",
+    "samples/financials.xlsx"
+  ],
+  "intent": {
+    "task_type": "pdf_to_spreadsheet",
+    "decision": "go",
+    "reason": null,
+    "source_pdf": "samples/q3_earnings.pdf",
+    "target_sheet": "samples/financials.xlsx"
+  },
+  "history": [
+    {
+      "prompt": "Locate information in the PDF and enter it into the spreadsheet",
+      "intent": {
+        "task_type": "pdf_to_spreadsheet",
+        "decision": "go",
+        "reason": null,
+        "source_pdf": "samples/q3_earnings.pdf",
+        "target_sheet": "samples/financials.xlsx"
+      }
+    }
+  ],
+  "cancel_reason": "Cancellation detected in prompt."
+}

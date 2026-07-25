@@ -1,0 +1,87 @@
+{
+  "id": "f849d038",
+  "created_at": "2026-07-24T11:11:45.443559+00:00",
+  "status": "done",
+  "prompt": "Correct spelling errors while preserving formatting",
+  "files": [
+    "/Users/srishti/Desktop/docuHandlers/samples/report.docx"
+  ],
+  "intent": {
+    "task_type": "correct_document",
+    "decision": "go",
+    "reason": null,
+    "target_document": "/Users/srishti/Desktop/docuHandlers/samples/report.docx"
+  },
+  "history": [
+    {
+      "prompt": "Correct spelling errors while preserving formatting",
+      "intent": {
+        "task_type": "correct_document",
+        "decision": "go",
+        "reason": null,
+        "target_document": "/Users/srishti/Desktop/docuHandlers/samples/report.docx"
+      }
+    }
+  ],
+  "result": {
+    "status": "done",
+    "preview": "Document corrections\n\n  'Teh company had strong finacial results this quater.' \u2192 'the company had strong financial results this quarter.'\n  'We expect to recieve continued growth in revenue.' \u2192 'We expect to receive continued growth in revenue.'\n\nOutput file: /Users/srishti/Desktop/docuHandlers/samples/report_corrected.docx",
+    "output_file": "/Users/srishti/Desktop/docuHandlers/samples/report_corrected.docx",
+    "log": [
+      {
+        "stage": "confidence_gate_target",
+        "result": {
+          "decision": "go",
+          "reason": "Target file exists and is the right type."
+        }
+      },
+      {
+        "stage": "confidence_gate_corrections",
+        "result": {
+          "decision": "go",
+          "reason": "4 correction(s) ready to apply."
+        }
+      },
+      {
+        "stage": "document_corrector",
+        "result": {
+          "output_path": "/Users/srishti/Desktop/docuHandlers/samples/report_corrected.docx",
+          "corrections_detected": [
+            {
+              "pattern": "\\bteh\\b",
+              "replacement": "the",
+              "confidence": 0.9
+            },
+            {
+              "pattern": "\\brecieve\\b",
+              "replacement": "receive",
+              "confidence": 0.9
+            },
+            {
+              "pattern": "\\bfinacial\\b",
+              "replacement": "financial",
+              "confidence": 0.9
+            },
+            {
+              "pattern": "\\bquater\\b",
+              "replacement": "quarter",
+              "confidence": 0.9
+            }
+          ],
+          "corrections_applied": [
+            {
+              "before": "Teh company had strong finacial results this quater.",
+              "after": "the company had strong financial results this quarter.",
+              "confidence": 0.9
+            },
+            {
+              "before": "We expect to recieve continued growth in revenue.",
+              "after": "We expect to receive continued growth in revenue.",
+              "confidence": 0.9
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,8 +1,16 @@
 """Fixture app for the accessibility adapter's tests.
 
-A minimal GTK window with one editable entry and one read-only label, both
-with known accessible names, so tests can drive a real (if throwaway) app
-via AT-SPI instead of mocking the accessibility tree.
+A minimal GTK window with:
+- one named, normal-sized editable entry (role "text")
+- one read-only label (role "label")
+- one *unnamed*, tiny (1x1) decoy entry, also role "text"
+
+The decoy mirrors what real apps like gedit/LibreOffice do — their main
+document editor has no accessible name, and can share a role with other,
+irrelevant same-role elements (e.g. a hidden/degenerate-sized one). It lets
+tests verify the adapter's "search by role, prefer the largest on-screen
+match" disambiguation against something other than production apps that may
+not be installed everywhere.
 
 Usage: python3 accessible_test_app.py [entry_name] [initial_text]
 """
@@ -27,6 +35,11 @@ box.add(entry)
 label = Gtk.Label(label="read only label")
 label.get_accessible().set_name("readonly_label")
 box.add(label)
+
+decoy = Gtk.Entry()
+decoy.set_text("decoy")
+decoy.set_size_request(1, 1)
+box.add(decoy)
 
 win.add(box)
 win.connect("destroy", Gtk.main_quit)
