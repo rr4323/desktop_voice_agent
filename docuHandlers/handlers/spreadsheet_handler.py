@@ -10,6 +10,7 @@ import openpyxl
 from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
 import re
+from docuHandlers.logger import log_handler
 
 
 def _normalize_label(label: str) -> str:
@@ -17,6 +18,7 @@ def _normalize_label(label: str) -> str:
     return re.sub(r"\(.*?\)", "", label).strip().lower()
 
 
+@log_handler("spreadsheet_handler")
 def merge_into_spreadsheet(xlsx_path: str, metrics: list, period: str, sheet_name: str = None) -> dict:
     wb = openpyxl.load_workbook(xlsx_path)
     ws = wb[sheet_name] if sheet_name else wb.active

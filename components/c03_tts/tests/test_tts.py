@@ -11,7 +11,16 @@ import io
 import time
 import wave
 
+import shutil
+import pytest
+
 from components.c03_tts.src.tts import cancel, get_status, speak, synthesize, wait
+
+
+@pytest.fixture(autouse=True)
+def check_ffplay(request):
+    if "synthesize" not in request.node.name and shutil.which("ffplay") is None:
+        pytest.skip("ffplay binary not found on PATH")
 
 
 def test_synthesize_produces_real_audio():

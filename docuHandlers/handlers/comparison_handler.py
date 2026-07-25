@@ -2,6 +2,7 @@
 import os
 from collections import defaultdict
 
+from docuHandlers.logger import log_handler
 from extractors.text_extractor import extract_text, extract_key_values
 from extractors.pdf_extractor import extract_financials
 

@@ -109,6 +109,9 @@ def extract(request: dict[str, Any]) -> dict[str, Any]:
     query_lower = query.lower()
     matches = [c for c in candidates if query_lower in c["value"].lower()]
     if not matches:
+        query_words = [w for w in query_lower.split() if len(w) > 2]
+        matches = [c for c in candidates if any(w in c["value"].lower() for w in query_words)]
+    if not matches:
         raise LookupError(f"no content matching query {query!r} found in {file_path!r}")
 
     # Prefer the most specific match (a table cell) over a whole page of

@@ -20,8 +20,15 @@ import subprocess
 import threading
 import uuid
 import wave
+import ssl
 from pathlib import Path
 from typing import Any
+
+# Handle macOS Python ssl certificate validation issues when downloading voice models
+try:
+    ssl._create_default_https_context = ssl._create_unverified_context
+except AttributeError:
+    pass
 
 from piper import PiperVoice
 from piper.download_voices import download_voice

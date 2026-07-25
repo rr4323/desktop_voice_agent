@@ -28,22 +28,19 @@ class PPTXTool:
     def run(self, step: dict[str, Any]) -> dict[str, Any]:
         target = step["target"]
         print(target)
-        try:
-            if step.get("type") == "create":
-                return self._create(step, target)
+        if step.get("type") == "create":
+            return self._create(step, target)
 
-            operation = "write" if step.get("type") == "write" else "read"
-            request = {
-                "file": target["file"],
-                "slide": target["slide"],
-                "placeholder": target["placeholder"],
-                "operation": operation,
-            }
-            if operation == "write":
-                request["value"] = step.get("value")
-            return read_or_write(request)
-        except Exception as e:
-            print(e)
+        operation = "write" if step.get("type") == "write" else "read"
+        request = {
+            "file": target["file"],
+            "slide": target["slide"],
+            "placeholder": target["placeholder"],
+            "operation": operation,
+        }
+        if operation == "write":
+            request["value"] = step.get("value")
+        return read_or_write(request)
 
     def _create(self, step: dict[str, Any], target: dict[str, Any]) -> dict[str, Any]:
         file_path = workspace.resolve(target["file"])

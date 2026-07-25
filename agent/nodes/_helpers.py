@@ -41,15 +41,11 @@ def peek_current_value(step: dict[str, Any]) -> Any:
 
 
 def resolve_step_value(task_id: str, step: dict[str, Any]) -> Any:
-    # value_ref is documented (planner.py's own system prompt, the "create"
-    # rule) as living either at the step's top level or nested under
-    # "target" for a create-from-referenced-content step — check both
-    # rather than silently resolving to None when the planner used the
-    # latter shape.
+    ref = step.get("value_ref") or (step.get("target") or {}).get("value_ref")
+    if ref:
+        resolved = resolve_ref(task_id, ref)
+        if resolved is not None:
+            return resolved
     if step.get("value") is not None:
-        raw = step["value"]
-    elif step.get("value_ref") is not None:
-        raw = step["value_ref"]
-    else:
-        raw = (step.get("target") or {}).get("value_ref")
-    return resolve_ref(task_id, raw)
+        return step["value"]
+    return (step.get("target") or {}).get("value")

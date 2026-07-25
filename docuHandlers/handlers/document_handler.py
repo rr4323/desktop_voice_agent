@@ -3,10 +3,12 @@ import os
 import re
 
 from docx import Document
+from docuHandlers.logger import log_handler
 from extractors.pdf_extractor import extract_pdf_metrics_map
 from extractors.text_extractor import extract_text, extract_key_values
 
 
+@log_handler("document_handler")
 def transfer_pdf_to_docx(
     source_pdf: str, docx_path: str, output_path: str | None = None
 ) -> dict:

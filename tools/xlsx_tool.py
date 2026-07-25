@@ -18,6 +18,41 @@ The first row should be column headers. Use only facts present in the \
 source material below — never invent data."""
 
 
+def _extract_field_value(raw_text: Any, sheet_name: str | None, cell_ref: str) -> Any:
+    if not isinstance(raw_text, str) or "\n" not in raw_text:
+        return raw_text
+
+    col_char = "".join(c for c in cell_ref if c.isalpha()).upper()
+    col_map = {"A": "buyer", "B": "payer", "C": "bill details"}
+    target_field = col_map.get(col_char)
+    if not target_field:
+        return raw_text
+
+    lines = raw_text.splitlines()
+    if sheet_name:
+        clean_sheet = sheet_name.replace("&", "").replace(";", "").strip().lower()
+        section_lines = []
+        in_section = False
+        for line in lines:
+            clean_line = line.replace("&", "").replace(";", "").strip().lower()
+            if clean_line == clean_sheet or (clean_line.startswith(clean_sheet) and len(clean_line) <= len(clean_sheet) + 2):
+                in_section = True
+                continue
+            if in_section:
+                if any(clean_line == hdr or (clean_line.startswith(hdr) and len(clean_line) <= len(hdr) + 2) for hdr in ["dtdl", "att", "vodafone"]):
+                    break
+                section_lines.append(line)
+        if section_lines:
+            lines = section_lines
+
+    for line in lines:
+        line_clean = line.strip()
+        if line_clean.lower().startswith(target_field):
+            return line_clean[len(target_field):].strip()
+
+    return raw_text
+
+
 class XLSXTool:
     app_name = "xlsx"
 
@@ -30,7 +65,8 @@ class XLSXTool:
         operation = "write" if step.get("type") == "write" else "read"
         request = {"file": target["file"], "cell": target["cell"], "sheet": target.get("sheet"), "operation": operation}
         if operation == "write":
-            request["value"] = step.get("value")
+            raw_val = step.get("value") if step.get("value") is not None else target.get("value")
+            request["value"] = _extract_field_value(raw_val, target.get("sheet"), target["cell"])
         return read_or_write(request)
 
     def _create(self, step: dict[str, Any], target: dict[str, Any]) -> dict[str, Any]:

@@ -15,16 +15,25 @@ isn't one.
 """
 from typing import Any
 
-import gi
-
-gi.require_version("Atspi", "2.0")
-from gi.repository import Atspi, GLib  # noqa: E402
+try:
+    import gi
+    gi.require_version("Atspi", "2.0")
+    from gi.repository import Atspi, GLib
+    HAS_GI = True
+    GLibError = GLib.Error
+except (ImportError, ValueError):
+    HAS_GI = False
+    Atspi = None
+    GLib = None
+    GLibError = Exception
 
 _initialized = False
 
 
 def _ensure_init() -> None:
     global _initialized
+    if not HAS_GI:
+        raise RuntimeError("AT-SPI / PyGObject (gi) is not installed on this system")
     if not _initialized:
         Atspi.init()
         _initialized = True
@@ -33,11 +42,11 @@ def _ensure_init() -> None:
 def _matches(node, name: str | None, role: str | None) -> bool:
     try:
         name_ok = name is None or node.get_name() == name
-    except GLib.Error:
+    except GLibError:
         name_ok = False
     try:
         role_ok = role is None or node.get_role_name() == role
-    except GLib.Error:
+    except GLibError:
         role_ok = False
     return name_ok and role_ok
 
@@ -47,7 +56,7 @@ def _visible_area(node) -> int:
         if "Component" not in node.get_interfaces():
             return -1
         extents = Atspi.Component.get_extents(node, Atspi.CoordType.SCREEN)
-    except GLib.Error:
+    except GLibError:
         return -1
     if extents.width <= 0 or extents.height <= 0:
         return -1
@@ -61,7 +70,7 @@ def _collect_matches(node, name: str | None, role: str | None, depth: int = 0, m
     for i in range(node.get_child_count()):
         try:
             child = node.get_child_at_index(i)
-        except GLib.Error:
+        except GLibError:
             continue
         matches.extend(_collect_matches(child, name, role, depth + 1, max_depth))
     return matches
@@ -87,7 +96,7 @@ def _find_app(app_name: str):
         app = desktop.get_child_at_index(i)
         try:
             name = app.get_name()
-        except GLib.Error:
+        except GLibError:
             continue
         if name == app_name or app_name.lower() in name.lower():
             return app

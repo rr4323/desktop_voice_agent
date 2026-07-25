@@ -1,156 +1,275 @@
-# Voice-Controlled Desktop Agent (PDF / XLSX / PPTX)
+# Voice-Controlled Desktop Agent & docuHandlers
 
-DTDL HackFest — Problem Statement 2. See [`docs/TDD.md`](docs/TDD.md) for the
-full architecture and [`docs/Component_IO_Spec.md`](docs/Component_IO_Spec.md)
-for the exact input/output contract of every component.
+**DTDL HackFest — Problem Statement 2**
 
-## Running the unified agent
+A voice and text-driven AI agent that operates local desktop document workflows spanning **PDF, Excel (XLSX/CSV), PowerPoint (PPTX), Word (DOCX)** files, and browser automation.
 
-Every component below is now wired together into one running agent —
-accepts user **text or audio**, drives the TDD §5.1 pipeline (ASR → Plan →
-Policy → Confirm → Execute → Verify → Audit → Respond) as a **LangGraph
-`StateGraph`** (`agent/graph.py`), and returns **text or audio** — exposed
-over **FastAPI + WebSocket**:
+See [`docs/TDD.md`](docs/TDD.md) for the full technical design document and [`docs/Component_IO_Spec.md`](docs/Component_IO_Spec.md) for exact component contracts.
 
-```bash
-pip install -r requirements.txt
-# .env (repo root, gitignored) — server/app.py loads it at startup:
-#   GROQ_API_KEY=...           # required — c04_planner and c17_browser_agent's LLM calls
-#   LANGFUSE_SECRET_KEY=...    # optional — enables tracing (agent/tracing.py); omit to skip it
-#   LANGFUSE_PUBLIC_KEY=...
-#   LANGFUSE_BASE_URL=...
-uvicorn server.app:app --reload
+---
+
+## 🎯 System Purpose & Core Goals
+
+### Primary Objective
+Telecom back-office document workflows require extracting data from network reports/invoices (PDF), updating operational spreadsheets (XLSX/CSV), and refreshing executive slide decks (PPTX) or reports (DOCX). This project provides an autonomous, hands-free agent that accepts **spoken voice or written text instructions** to execute multi-step document operations locally.
+
+### Key Security & Design Principles
+1. **Deterministic Safety Boundary:** The LLM *proposes* actions; a separate, non-LLM Python rule engine (*Policy Engine*) decides whether any action is allowed to run.
+2. **Prompt-Injection Resistance:** Content read from PDFs, spreadsheets, or webpages is treated strictly as **untrusted data**, never as executable instructions.
+3. **Data Sovereignty & GDPR Compliance:** All processing runs 100% locally or on controlled endpoints. PII (phone numbers, subscriber IDs) is automatically masked in audit logs.
+4. **Empirical Verification:** The agent never assumes a write succeeded—it re-reads the target file/cell after execution to confirm the postcondition was met.
+
+---
+
+## 🔄 End-to-End Process Flow
+
+The processing pipeline is driven by a stateful **LangGraph `StateGraph`** (`agent/graph.py`) that manages task execution across 8 distinct stages:
+
+```
+[ User Input (Text / Audio WAV) ]
+              │
+              ▼
+   [ Stage 1: ASR (Whisper) ] ── (Low confidence) ──► [ Clarification Prompt ]
+              │
+              ▼
+   [ Stage 2: Task Planner (LLM) ] ── (Ambiguous / Clarify) ──► [ Stage 8: Respond / TTS ]
+              │                                                        ▲
+              ▼                                                        │
+   [ Stage 3: Policy Engine ] ── DENY ──► [ Deny Node ] ──► [ Audit ]  │
+       │            │                                         │        │
+     ALLOW     ASK_CONFIRM                                    │        │
+       │            │                                         │        │
+       │            ▼                                         │        │
+       │    [ Stage 4: Confirm Loop ] (Pauses via interrupt())│        │
+       │        │         │                                   │        │
+       │      Approved  Declined                              │        │
+       │        │         │                                   │        │
+       ▼        ▼         ▼                                   ▼        │
+    [ Stage 5: Execute Adapter ] [ Cancel Node ] ─────────► [ Audit ]  │
+       │                            │                         │        │
+       ▼                            └─────────────────────► [ Audit ]  │
+    [ Stage 6: Verification ] ────────────────────────────► [ Audit ]  │
+       │                                                               │
+       └── (All steps complete) ───────────────────────────────────────┘
 ```
 
-Connect to `ws://localhost:8000/ws/agent/<session_id>` and send one JSON
-message per turn — `{"type": "text", "text": "..."}` or
-`{"type": "audio", "audio_b64": "...", "mime": "audio/wav"}` — and reply to
-any `confirm_request` event the same way. See `server/ws.py`'s module
-docstring for the full protocol.
+### Stage-by-Stage Breakdown
 
-- **`agent/`** — the StateGraph: `state.py` (shared state shape),
-  `nodes/` (one module per pipeline stage), `graph.py` (wires them, with a
-  LangGraph checkpointer so an `ASK_CONFIRM` genuinely pauses the graph via
-  `interrupt()` and resumes exactly where it left off), `tracing.py`
-  (optional Langfuse instrumentation — a no-op unless `LANGFUSE_SECRET_KEY`/
-  `LANGFUSE_PUBLIC_KEY` are set).
-- **`tools/`** — one wrapper per execution adapter, dispatched by
-  `target["app"]` (see `tools/registry.py`). Includes `tools/sub_agent/
-  browser_agent_tool.py`, which wraps `c17_browser_agent`'s autonomous
-  LangGraph browser agent as the `"browser_agent"` tool — since that
-  sub-agent doesn't gate its own internal actions, `c05_policy_engine`
-  always requires confirmation before this tool runs.
-- **`server/`** — the FastAPI app (`app.py`) and WebSocket handler
-  (`ws.py`) implementing the protocol above.
-- **`components/c13_orchestrator`** still exists as a thin, non-interactive
-  synchronous wrapper around `agent/graph.py`, so that component's own
-  directory/tests stay meaningful as the "run the whole pipeline
-  end-to-end" entry point the spec describes.
+1. **Stage 1: Speech Recognition (ASR - `c01`)**
+   - Microphones capture spoken audio or receive base64 WAV payload over WebSocket.
+   - **Faster-Whisper** transcribes speech to text with confidence scoring. Low-confidence speech triggers a clarification prompt instead of guessing.
 
-## How this repo is organized
+2. **Stage 2: Task Planning (LLM - `c04`)**
+   - Receives transcript and workspace context (`open_files`, `working_memory`).
+   - Converts natural language into a schema-validated `TaskPlan` containing structured `ActionRequest` steps (`read`, `write`, `create`, `clarify`). Never executes actions directly.
 
-Every component from the spec gets its own top-level folder under
-[`components/`](components/), numbered to match the spec's section numbers:
+3. **Stage 3: Policy Engine Authorization (`c05`)**
+   - Pure Python rule engine evaluates each `ActionRequest`:
+     - **`ALLOW`**: Safe read-only actions or writing to empty cells.
+     - **`ASK_CONFIRM`**: Overwriting non-empty data, destructive operations, or accessing sensitive fields.
+     - **`DENY`**: Injection attempts or forbidden operations.
 
-| # | Folder | Responsibility |
+4. **Stage 4: Confirmation Interruption Loop (`c02` & LangGraph Interrupt)**
+   - When `ASK_CONFIRM` is triggered, LangGraph executes an `interrupt()`, pausing graph state via SQLite checkpointer (`data/agent_checkpoints.sqlite`).
+   - Sends a `confirm_request` to the client. When the user responds (*"Yes, proceed"* or *"Cancel"*), the response is deterministically parsed and graph execution resumes.
+
+5. **Stage 5: Execution Adapters & `docuHandlers` (`c06`–`c18` & `tools/`)**
+   - Approved actions are dispatched via `tools/registry.py` to target adapters:
+     - 📄 **PDF (`c06`)**: Text/table extraction with page & element provenance.
+     - 📊 **XLSX / CSV (`c07`)**: Cell, formula, and sheet read-write.
+     - 📽️ **PPTX (`c08`)**: Slide text, tables, and shape placeholders.
+     - 📝 **DOCX (`c18`)**: Paragraph and table cell read-write.
+     - 🌐 **Browser (`c15`/`c17`)**: Playwright automation & autonomous web sub-agent.
+     - ⚙️ **`docuHandlers/`**: High-level modules for PDF conversion, document correction, spreadsheet merging, presentation updates, and file organization.
+   - Values are stored in **Working Memory (`c09`)** to avoid numeric LLM hallucinations.
+
+6. **Stage 6: Postcondition Verification (`c10`)**
+   - After a write, the target file/cell is re-read on disk to confirm that the value actually landed.
+
+7. **Stage 7: Audit Logging (`c12`)**
+   - One structured, PII-masked compliance log line is written per step (`data/audit.jsonl`).
+
+8. **Stage 8: Output & Text-to-Speech (TTS - `c03`)**
+   - Summarizes verified results. If input mode was audio, **Piper TTS** synthesizes speech and streams audio back over WebSocket.
+
+---
+
+## 📦 Data Version Control (DVC)
+
+Sample datasets, document templates, and workspace files are tracked using **DVC (Data Version Control)** to decouple large binaries from Git while keeping versions reproducible:
+
+- **DVC Tracking Files:**
+  - `docuHandlers/samples.dvc`
+  - `workspace_files.dvc`
+
+### DVC Usage Commands
+
+```bash
+# Initialize DVC repository
+dvc init
+
+# Add data directories to DVC tracking
+dvc add docuHandlers/samples workspace_files
+
+# Check DVC status
+dvc status
+
+# Push / Pull tracked data snapshots (when remote is configured)
+dvc push
+dvc pull
+```
+
+---
+
+## 📜 `docuHandlers` Per-Run Execution Logging
+
+Every handler inside **`docuHandlers/`** automatically logs detailed execution metadata per run into [`docuHandlers/logs/`](docuHandlers/logs/):
+
+1. **Consolidated Log (`docuHandlers/logs/docuhandlers.log`):** Cumulative timestamped history of all handler invocations.
+2. **Individual Run Log (`docuHandlers/logs/run_<timestamp>_<handler>.log`):** Dedicated per-run execution file recording:
+   - **Timestamp (ISO8601 UTC)**
+   - **Handler Name** (e.g. `spreadsheet_handler`, `document_handler`, `document_corrector`, `comparison_handler`, `file_organizer`)
+   - **Execution Status** (`SUCCESS` / `FAILED`)
+   - **Execution Duration** (in seconds)
+   - **Input Arguments & Output Result Payloads**
+   - **Error Stack Trace** (if an error occurs)
+
+---
+
+## 📂 Project Organization & Components
+
+Every component gets its own folder under [`components/`](components/):
+
+| # | Component | Responsibility |
 |---|---|---|
-| 01 | [`components/c01_asr/`](components/c01_asr/) | Convert microphone audio into a transcript with a confidence signal. |
-| 02 | [`components/c02_confirmation_parser/`](components/c02_confirmation_parser/) | Parse a spoken response to a confirmation prompt into a strict, deterministic decision. |
-| 03 | [`components/c03_tts/`](components/c03_tts/) | Convert a response string into spoken audio output, with support for barge-in interruption. |
-| 04 | [`components/c04_planner/`](components/c04_planner/) | Convert a transcript + task context into a structured, schema-valid TaskPlan. Never executes anything itself. |
-| 05 | [`components/c05_policy_engine/`](components/c05_policy_engine/) | The sole authority that decides whether a proposed action executes. Pure function, no model call. |
-| 06 | [`components/c06_pdf_adapter/`](components/c06_pdf_adapter/) | Extract text/table data from a PDF with page/element provenance. Read-only. |
-| 07 | [`components/c07_xlsx_adapter/`](components/c07_xlsx_adapter/) | Read/write spreadsheet cells, formulas, and sheets. |
-| 08 | [`components/c08_pptx_adapter/`](components/c08_pptx_adapter/) | Read/write slide text, tables, and placeholders. |
-| 09 | [`components/c09_working_memory/`](components/c09_working_memory/) | Hold extracted values with provenance for the duration of a task, keyed by step ID. |
-| 10 | [`components/c10_verification/`](components/c10_verification/) | Re-check that an executed action's postcondition actually holds, and flag implausible values. |
-| 11 | [`components/c11_state_manager/`](components/c11_state_manager/) | Track step status across a task; support pause, resume, correction, cancellation. |
-| 12 | [`components/c12_audit_logger/`](components/c12_audit_logger/) | Write one structured, PII-masked log entry per step. |
-| 13 | [`components/c13_orchestrator/`](components/c13_orchestrator/) | Wires all other components together per the data flow in the TDD. The only component that is an integration test, not a unit-testable leaf. |
-| 14 | [`components/c14_accessibility_adapter/`](components/c14_accessibility_adapter/) | Read/write live desktop UI elements via AT-SPI, for content the format-native adapters can't resolve. Secondary/fallback path. |
-| 15 | [`components/c15_browser_adapter/`](components/c15_browser_adapter/) | Read/write a value on a web page (e.g. an internal ops dashboard), same read/write-with-provenance shape as the file adapters. |
-| 16 | [`components/c16_libreoffice_adapter/`](components/c16_libreoffice_adapter/) | Headless document conversion (`soffice --headless --convert-to`) for legacy formats or PDF export the native-library adapters don't handle. |
-| 17 | [`components/c17_browser_agent/`](components/c17_browser_agent/) | Generic version of `c15`: given a natural-language instruction, autonomously drives a browser via a LangGraph ReAct agent over a local Ollama model. ⚠️ does not route through the Policy Engine — see its README. Wrapped as the `sub_agent` tool, see "Running the unified agent" above. |
-| 18 | [`components/c18_docx_adapter/`](components/c18_docx_adapter/) | Read/write Word document paragraphs and table cells — promoted from an earlier prototype, same pattern as 14-17. |
+| **01** | [`c01_asr`](components/c01_asr/) | Converts audio input into text transcript with confidence scoring (Faster-Whisper). |
+| **02** | [`c02_confirmation_parser`](components/c02_confirmation_parser/) | Deterministically parses spoken/written responses to confirmation prompts. |
+| **03** | [`c03_tts`](components/c03_tts/) | Synthesizes response text into spoken audio output with barge-in interruption support (Piper TTS). |
+| **04** | [`c04_planner`](components/c04_planner/) | Converts transcript + task context into a structured JSON `TaskPlan`. Never executes actions directly. |
+| **05** | [`c05_policy_engine`](components/c05_policy_engine/) | Sole authority that decides whether an action executes (`ALLOW`, `ASK_CONFIRM`, `DENY`). Pure rule-engine. |
+| **06** | [`c06_pdf_adapter`](components/c06_pdf_adapter/) | Extracts text/table data from PDF files with page & element provenance. |
+| **07** | [`c07_xlsx_adapter`](components/c07_xlsx_adapter/) | Reads/writes Excel (`.xlsx`) and CSV (`.csv`) spreadsheet cells, formulas, and sheets. |
+| **08** | [`c08_pptx_adapter`](components/c08_pptx_adapter/) | Reads/writes PowerPoint slide text, tables, and placeholders. |
+| **09** | [`c09_working_memory`](components/c09_working_memory/) | Holds extracted values with provenance for the duration of a task to prevent numeric hallucination. |
+| **10** | [`c10_verification`](components/c10_verification/) | Re-reads target file postconditions after writes to empirically verify success. |
+| **11** | [`c11_state_manager`](components/c11_state_manager/) | Tracks step status across a task; supports pause, resume, correction, and cancellation. |
+| **12** | [`c12_audit_logger`](components/c12_audit_logger/) | Writes structured, PII-masked compliance audit logs per step. |
+| **13** | [`c13_orchestrator`](components/c13_orchestrator/) | Wires all components together for end-to-end task execution. |
+| **14** | [`c14_accessibility_adapter`](components/c14_accessibility_adapter/) | AT-SPI desktop accessibility tree fallback adapter for GUI elements. |
+| **15** | [`c15_browser_adapter`](components/c15_browser_adapter/) | Reads/writes values on web pages via Playwright selectors. |
+| **16** | [`c16_libreoffice_adapter`](components/c16_libreoffice_adapter/) | Headless document format conversion (`soffice --headless`). |
+| **17** | [`c17_browser_agent`](components/c17_browser_agent/) | Autonomous LangGraph ReAct agent driving browser tasks. |
+| **18** | [`c18_docx_adapter`](components/c18_docx_adapter/) | Reads/writes Word (`.docx`) document paragraphs and table cells. |
 
-Components 14-18 aren't in the original `Component_IO_Spec.md` — they were
-added afterward: 14 and 15 to explicitly demonstrate the "operate the
-desktop using appropriate GUI, accessibility, browser, or automation
-interfaces" capability beyond the document-format adapters, 16 to cover
-legacy-format conversion (`.doc`/`.xls`/`.ppt`) that the native libraries
-can't read or write at all, 17 as a generic, LLM-driven version of 15 built
-for a specific request to test that capability end-to-end, and 18 to give
-`.docx` the same first-class adapter treatment as PDF/XLSX/PPTX already
-had. See the "Extensions beyond the original spec" section at the bottom
-of [`docs/Component_IO_Spec.md`](docs/Component_IO_Spec.md) for 14-17's
-contracts (18 predates that section but follows the same shape).
+### 🛠️ Sub-System Architecture
+- **`docuHandlers/`**: High-level modules for PDF extraction, document correction (`document_corrector.py`), comparison (`comparison_handler.py`), presentation updating (`presentation_handler.py`), spreadsheet merging (`spreadsheet_handler.py`), and file organization (`file_organizer.py`).
+- **`agent/`**: LangGraph StateGraph orchestration (`graph.py`, `state.py`, `nodes/`).
+- **`tools/`**: Execution adapters registry (`tools/registry.py`).
+- **`server/`**: FastAPI app and WebSocket handler (`app.py`, `ws.py`).
 
-**The hard rule that makes parallel work possible:** components never import
-or call each other directly. They only exchange the JSON-shaped data
-structures defined in [`schemas/`](schemas/) (mirrors TDD §5.2 and the
-Component I/O Spec). If you're building component 6 and need component 5's
-output, don't wait for someone to finish it — write a fixture in
-`schemas/examples/` that matches the documented shape and build against that.
-`agent/graph.py` and `tools/` are where these get wired together for real
-(see "Running the unified agent" above) — every component below is still
-independently buildable/testable exactly as described.
+---
 
-## Working on your own component
+## ⚡ Setup & Quick Start
 
-1. Pick your folder under `components/`.
-2. Read its `README.md` — responsibility, exact input/output JSON, and the
-   standalone test the spec calls for.
-3. Add whatever dependencies you need to that folder's own `requirements.txt`
-   (don't touch another component's file).
-4. Implement the stub function in `src/`.
-5. Write/extend the tests in `tests/`, using fixtures from your component's
-   `fixtures/` folder (and/or the shared ones in `schemas/examples/`).
-6. Run just your component's tests: `pytest components/<your_folder>`.
-
-Because every component is a pure function over JSON-like data (per the I/O
-spec), you should be able to fully build and test yours without any other
-component — including the ASR/TTS/LLM ones — being implemented yet.
-
-## Setup
+### 1. Environment Setup
 
 ```bash
-python3 -m venv --system-site-packages .venv   # --system-site-packages needed for c14 (PyGObject/Atspi)
+# Clone and enter directory
+cd desktop_voice_agent
+
+# Create python virtual environment
+python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt   # installs every component's deps, for integration work
-# or, to work on just one component:
-pip install -r components/c05_policy_engine/requirements.txt
+
+# Install dependencies (includes DVC, LangGraph, FastAPI, PyMuPDF, etc.)
+pip install -r requirements.txt
+
+# Install Playwright browser binaries
+python -m playwright install chromium
 ```
 
-`c14_accessibility_adapter` also needs system packages
-(`python3-gi gir1.2-atspi-2.0 at-spi2-core xvfb`) and `c15_browser_adapter`
-needs its browser binary (`python -m playwright install chromium`) — see
-those components' own READMEs.
+### 2. Environment Variables Configuration
 
-## Running tests
+Create a `.env` file in the root directory:
+```env
+MISTRAL_API_KEY="your_mistral_api_key"
+GROQ_API_KEY="your_groq_api_key"
+GEMINI_API_KEY="your_gemini_api_key"
+
+# Optional Langfuse Tracing
+LANGFUSE_SECRET_KEY=""
+LANGFUSE_PUBLIC_KEY=""
+LANGFUSE_BASE_URL="https://us.cloud.langfuse.com"
+```
+
+---
+
+## 🚀 How to Run
+
+### Option A: Running via CLI (`main.py`)
+
+Run tasks directly from the command line against target files:
 
 ```bash
-pytest                              # everything
-pytest components/c05_policy_engine # just one component
+# Execute Invoice Extraction & Filling
+python main.py --prompt "Read the invoice information from the PDF and fill the Buyer, Payer, and Bill Details columns only in the AT&T and Vodafone worksheets of the Excel file. Do not modify the DTDL sheet." --files Invoice_Insights_Filled.pdf Invoice_Insights_Template.xlsx
+
+# Modify a CSV / Spreadsheet file
+python main.py --prompt "Write 'FY 2023-2024' to cell D1 in workspace_files/Class_Student_Counts.csv." --files workspace_files/Class_Student_Counts.csv
 ```
 
-## Suggested build order (from the spec)
+---
 
-1. Policy Engine (`05`) — no dependencies, defines the safety contract.
-2. Confirmation Parser (`02`) and Working Memory (`09`) — dependency-free quick wins.
-3. PDF / XLSX / PPTX Adapters (`06`–`08`) — file-in/file-out, no voice or LLM needed.
-4. Verification (`10`), State Manager (`11`), Audit Logger (`12`).
-5. ASR / TTS (`01`, `03`) — hardware-dependent.
-6. Task Planner (`04`) — needs real `ActionRequest` schemas to validate against.
-7. Orchestrator (`13`) — last, wires everything together.
-8. Accessibility / Browser Adapters (`14`, `15`) — added later to showcase
-   the GUI/accessibility/browser capability explicitly; not on the critical
-   path for the core PDF→XLSX→PPTX demo trace.
+### Option B: Running via FastAPI / WebSocket Server
 
-## Git workflow for a two-person team
+Start the application server:
 
-- One branch per component/task (e.g. `asr-whisper-wrapper`,
-  `policy-engine-pii-tier`), opened against `main`.
-- Because each person's changes live under their own `components/<n>_<slug>/`
-  folder plus maybe a new file in `schemas/examples/`, merge conflicts should
-  be rare. If you need to change a shared file in `schemas/`, flag it to the
-  other person first — that's the shared contract both of you depend on.
+```bash
+uvicorn server.app:app --port 8000 --reload
+```
+
+Connect to `ws://localhost:8000/ws/agent/<session_id>`:
+
+#### Client $\rightarrow$ Server Payloads:
+- **Text Turn:**
+  ```json
+  {
+    "type": "text", 
+    "text": "Extract Revenue from docuHandlers/samples/q3_earnings.pdf",
+    "context": {
+      "open_files": ["docuHandlers/samples/q3_earnings.pdf"],
+      "working_memory": {}
+    }
+  }
+  ```
+- **Audio Turn:**
+  ```json
+  {
+    "type": "audio",
+    "audio_b64": "<base64_encoded_wav_bytes>",
+    "mime": "audio/wav"
+  }
+  ```
+
+#### Server $\rightarrow$ Client Responses:
+- **Status Event:** `{"type": "status", "stage": "planning"}`
+- **Confirmation Interruption Request:** `{"type": "confirm_request", "prompt": "...", "step_id": N}`
+- **Final Result:** `{"type": "final", "text": "...", "results": [...]}`
+
+---
+
+## 🛡️ Backup & Reversibility (`.bak` files)
+
+Before performing any write or overwrite action, the adapter creates a temporary backup snapshot (`file.ext.bak`). This ensures:
+1. **Reversibility:** Safe rollback if an operation fails or is cancelled by the user.
+2. **Preservation:** The original file remains safe while outputs can be stored as updated files (`*_updated.ext`).
+
+---
+
+## 🧪 Testing & Verification
+
+Run the full unit test suite across all 18 components, adapters, tools, state graph, and WebSocket endpoints:
+
+```bash
+pytest
+```

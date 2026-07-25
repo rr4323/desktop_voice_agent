@@ -15,6 +15,12 @@ from components.c16_libreoffice_adapter.src.libreoffice_adapter import convert
 FIXTURE_TXT = __file__.replace("tests/test_libreoffice_adapter.py", "fixtures/sample.txt")
 
 
+@pytest.fixture(autouse=True)
+def check_soffice():
+    if shutil.which("soffice") is None:
+        pytest.skip("soffice (LibreOffice) binary not available in environment")
+
+
 @pytest.fixture
 def sample_txt(tmp_path):
     dest = tmp_path / "sample.txt"

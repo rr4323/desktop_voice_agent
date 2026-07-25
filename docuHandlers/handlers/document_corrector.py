@@ -4,6 +4,7 @@ import os
 import re
 
 from docx import Document
+from docuHandlers.logger import log_handler
 
 # Built-in low-risk typo dictionary for demo / safe corrections
 DEFAULT_CORRECTIONS = {
@@ -37,6 +38,7 @@ def detect_corrections(text: str, extra_replacements: list[str] | None = None) -
     return corrections
 
 
+@log_handler("document_corrector")
 def correct_document(
     docx_path: str,
     replacements: list[str] | None = None,

@@ -1,0 +1,6 @@
+outs:
+- md5: 8cb6f968f80e775a897defeb8ebf23c0.dir
+  size: 189768
+  nfiles: 12
+  hash: md5
+  path: samples

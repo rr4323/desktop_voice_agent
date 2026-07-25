@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 from datetime import datetime
+from docuHandlers.logger import log_handler
 
 
 EXT_FOLDERS = {
@@ -25,6 +26,7 @@ def _rule_from_prompt(prompt: str) -> str:
     return "by_type"
 
 
+@log_handler("file_organizer")
 def organise_files(files: list[str], prompt: str, dest_root: str) -> dict:
     rule = _rule_from_prompt(prompt)
     os.makedirs(dest_root, exist_ok=True)

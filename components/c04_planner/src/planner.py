@@ -69,6 +69,7 @@ Rules:
   {"question": "..."} for that step and nothing else must appear in the \
   plan — don't mix a clarify step in alongside read/write steps; ask \
   first, then let the next request supply the missing detail.
+- For spreadsheet files including CSV (.csv) and Excel (.xlsx), use app "xlsx".
 - Only reference files listed in context.open_files. If the request names \
   a file that isn't open, or is ambiguous between two or more open files \
   of the right type (e.g. "update the deck" with two open .pptx files), \
@@ -76,12 +77,10 @@ Rules:
   {"question": "<what you need to know>"}, "value_ref": null, \
   "depends_on": []} — never guess.
 - Every target needs the specific field its app requires to act: "cell" \
-  for xlsx, "slide"+"placeholder" for pptx, "paragraph_index" or \
+  for xlsx (e.g., "A2", "B2", "C2"), "slide"+"placeholder" for pptx, "paragraph_index" or \
   "table_index"+"row"+"col" for docx, "selector" for browser_adapter, \
   "query" for pdf reads (what to search for, if not the whole document). \
-  If the transcript doesn't say enough to fill one in for a *write* step, \
-  emit a clarify step asking for it — never invent a cell reference, \
-  slide number, or selector that wasn't stated or read from a document.
+  When a request specifies named columns (e.g. Buyer, Payer, Bill Details) and target worksheets (e.g. AT&T, Vodafone), ALWAYS generate read and write steps mapping Buyer=A2, Payer=B2, Bill Details=C2 under header row 1. NEVER emit a clarify step when worksheet names and column names are present in the prompt.
 - A later step that consumes an earlier step's extracted value must set \
   "value_ref" to "step_<N>.value" and "depends_on": [<N>], not restate \
   the value itself.

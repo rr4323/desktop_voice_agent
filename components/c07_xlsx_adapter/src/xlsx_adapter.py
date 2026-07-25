@@ -11,10 +11,38 @@ that lines up with the TDD's emphasis on reversible writes, and load
 without `data_only` so untouched formula cells in the workbook are left
 as formulas rather than getting flattened to their last-computed value.
 """
+import csv
+import os
 import shutil
 from typing import Any
 
 import openpyxl
+
+
+def _load_wb(file_path: str, data_only: bool = False):
+    if file_path.endswith(".csv"):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Sheet1"
+        if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+            with open(file_path, "r", encoding="utf-8-sig") as f:
+                reader = csv.reader(f)
+                for row in reader:
+                    ws.append(row)
+        return wb
+    return openpyxl.load_workbook(file_path, data_only=data_only)
+
+
+def _save_wb(wb, file_path: str):
+    if file_path.endswith(".csv"):
+        ws = wb.active
+        with open(file_path, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f)
+            for row in ws.iter_rows(values_only=True):
+                # Remove trailing empty cells if row is blank
+                writer.writerow([cell if cell is not None else "" for cell in row])
+    else:
+        wb.save(file_path)
 
 
 def read_or_write(request: dict[str, Any]) -> dict[str, Any]:
@@ -56,7 +84,7 @@ def create(request: dict[str, Any]) -> dict[str, Any]:
     for row in rows:
         ws.append(row)
 
-    wb.save(file_path)
+    _save_wb(wb, file_path)
     return {"success": True, "file": file_path, "sheet": ws.title, "row_count": len(rows)}
 
 
@@ -67,7 +95,7 @@ def _resolve_sheet(wb, sheet_name: str | None):
 
 
 def _read_cell(file_path: str, sheet_name: str | None, cell_ref: str) -> dict[str, Any]:
-    wb = openpyxl.load_workbook(file_path, data_only=True)
+    wb = _load_wb(file_path, data_only=True)
     try:
         ws = _resolve_sheet(wb, sheet_name)
         try:
@@ -83,7 +111,7 @@ def _write_cell(file_path: str, sheet_name: str | None, cell_ref: str, new_value
     backup_path = file_path + ".bak"
     shutil.copy2(file_path, backup_path)
 
-    wb = openpyxl.load_workbook(file_path)
+    wb = _load_wb(file_path)
     try:
         ws = _resolve_sheet(wb, sheet_name)
         try:
@@ -91,7 +119,7 @@ def _write_cell(file_path: str, sheet_name: str | None, cell_ref: str, new_value
             ws[cell_ref] = new_value
         except (ValueError, KeyError, IndexError) as exc:
             raise ValueError(f"invalid cell reference {cell_ref!r} in sheet {ws.title!r}") from exc
-        wb.save(file_path)
+        _save_wb(wb, file_path)
         return {
             "success": True,
             "cell": cell_ref,

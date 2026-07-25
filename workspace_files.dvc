@@ -1,0 +1,6 @@
+outs:
+- md5: 6f563dc4cadd08aa417b7fe2645d229b.dir
+  size: 8252
+  nfiles: 4
+  hash: md5
+  path: workspace_files
